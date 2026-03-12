@@ -53,9 +53,11 @@ cp .env.example .env
 # 3. Poblar datos demo
 npm run seed
 
-# 4. Iniciar servidor
+# 4. Iniciar servidor (puerto 5001 por defecto)
 npm run dev
 ```
+
+> **Nota macOS:** El puerto 5000 está ocupado por AirPlay Receiver. Este proyecto usa el puerto 5001 por defecto. Si necesitas cambiar el puerto, edita `PORT` en tu `.env`.
 
 ## API Endpoints
 

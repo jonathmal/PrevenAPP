@@ -78,7 +78,7 @@ const startServer = async () => {
     await mongoose.connect(config.mongoURI);
     console.log(`✅ MongoDB conectado: ${mongoose.connection.host}`);
 
-    app.listen(config.port, () => {
+    const server = app.listen(config.port, () => {
       console.log(`
 ╔══════════════════════════════════════════════════════╗
 ║                                                      ║
@@ -89,6 +89,15 @@ const startServer = async () => {
 ║                                                      ║
 ╚══════════════════════════════════════════════════════╝
       `);
+    });
+
+    server.on("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        console.error(`❌ Puerto ${config.port} está ocupado. En Mac, desactiva AirPlay Receiver (System Settings → General → AirDrop & Handoff) o usa otro puerto en .env`);
+      } else {
+        console.error("❌ Error del servidor:", err.message);
+      }
+      process.exit(1);
     });
   } catch (err) {
     console.error("❌ Error al iniciar servidor:", err.message);
