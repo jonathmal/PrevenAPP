@@ -40,39 +40,80 @@ export default function TamizajesPage() {
     return (order[a.status] || 2) - (order[b.status] || 2);
   });
 
+  const total = sorted.length;
+  const completePct = total > 0 && summary
+    ? Math.round(((summary.green || 0) / total) * 100)
+    : 0;
+
   return (
     <div>
       {summary && (
-        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-          {[
-            { label: "Vencidos", val: summary.red, color: COLORS.red, bg: COLORS.redBg },
-            { label: "Próximos", val: summary.yellow, color: COLORS.yellow, bg: COLORS.yellowBg },
-            { label: "Al día", val: summary.green, color: COLORS.green, bg: COLORS.greenBg },
-          ].map((item, i) => (
-            <div key={i} style={{
-              flex: 1, textAlign: "center", padding: "14px 8px", borderRadius: 14, background: item.bg,
-            }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: item.color }}>{item.val || 0}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: item.color }}>{item.label}</div>
+        <div className="fade-in" style={{ marginBottom: 20 }}>
+          {/* Progress ring */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 16,
+            padding: "16px 20px", borderRadius: 16,
+            background: "linear-gradient(135deg, " + COLORS.primaryLight + ", #fff)",
+            border: "1px solid " + COLORS.border, marginBottom: 12,
+          }}>
+            <div style={{ position: "relative", width: 56, height: 56, flexShrink: 0 }}>
+              <svg viewBox="0 0 36 36" style={{ width: 56, height: 56, transform: "rotate(-90deg)" }}>
+                <circle cx="18" cy="18" r="15.5" fill="none" stroke={COLORS.divider} strokeWidth="3" />
+                <circle cx="18" cy="18" r="15.5" fill="none"
+                  stroke={completePct === 100 ? COLORS.green : COLORS.primary}
+                  strokeWidth="3" strokeDasharray={completePct + " " + (100 - completePct)}
+                  strokeLinecap="round" style={{ transition: "stroke-dasharray 0.6s ease" }} />
+              </svg>
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: completePct === 100 ? COLORS.green : COLORS.primary }}>
+                  {completePct}%
+                </span>
+              </div>
             </div>
-          ))}
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>
+                {completePct === 100 ? "¡Todos al día!" : "Tamizajes completados"}
+              </div>
+              <div style={{ fontSize: 13, color: COLORS.textSec }}>
+                {summary.green || 0} de {total} al día
+              </div>
+            </div>
+          </div>
+
+          {/* Status pills */}
+          <div style={{ display: "flex", gap: 8 }}>
+            {[
+              { label: "Vencidos", val: summary.red, color: COLORS.red, bg: COLORS.redBg },
+              { label: "Próximos", val: summary.yellow, color: COLORS.yellow, bg: COLORS.yellowBg },
+              { label: "Al día", val: summary.green, color: COLORS.green, bg: COLORS.greenBg },
+            ].map((item, i) => (
+              <div key={i} style={{
+                flex: 1, textAlign: "center", padding: "12px 8px", borderRadius: 14, background: item.bg,
+              }}>
+                <div style={{ fontSize: 24, fontWeight: 800, color: item.color }}>{item.val || 0}</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: item.color }}>{item.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {sorted.length === 0 ? (
-        <div>
-          <EmptyState icon="🛡️" message="No hay tamizajes registrados aún" />
-          <BigButton onClick={handleGenerate} icon="⚡">Generar tamizajes según mi perfil</BigButton>
-        </div>
+        <EmptyState
+          icon="🛡️"
+          message="No hay tamizajes registrados aún"
+          action={handleGenerate}
+          actionLabel="Generar tamizajes según mi perfil"
+        />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className="stagger" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {sorted.map(s => (
-            <Card key={s._id} style={{ padding: 16, borderLeft: `4px solid ${STATUS[s.status]?.color || COLORS.border}` }}>
+            <Card key={s._id} style={{ padding: 16, borderLeft: "4px solid " + (STATUS[s.status]?.color || COLORS.border) }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 4 }}>{s.name}</div>
                   <div style={{ fontSize: 13, color: COLORS.textSec }}>
-                    Cada {s.intervalMonths >= 12 ? `${s.intervalMonths / 12} año(s)` : `${s.intervalMonths} meses`}
+                    Cada {s.intervalMonths >= 12 ? (s.intervalMonths / 12) + " año(s)" : s.intervalMonths + " meses"}
                   </div>
                   {s.lastDone && (
                     <div style={{ fontSize: 12, color: COLORS.textSec, marginTop: 4 }}>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { LoadingSpinner } from "./components/UI";
+import { LoadingSpinner, OfflineBanner, InstallPrompt } from "./components/UI";
 import Layout from "./components/Layout";
 import LoginPage from "./pages/LoginPage";
 import TamizajesPage from "./pages/TamizajesPage";
@@ -25,13 +25,16 @@ function AppContent() {
         tcc: <TCCPage />,
       };
 
-  // Reset tab if role changes
   const validTab = pages[activeTab] ? activeTab : (isDoctor ? "dashboard" : "tamizajes");
 
   return (
-    <Layout activeTab={validTab} onNavigate={setActiveTab}>
-      {pages[validTab]}
-    </Layout>
+    <>
+      <OfflineBanner />
+      <Layout activeTab={validTab} onNavigate={setActiveTab}>
+        {pages[validTab]}
+      </Layout>
+      <InstallPrompt />
+    </>
   );
 }
 

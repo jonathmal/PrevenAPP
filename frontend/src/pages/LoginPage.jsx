@@ -10,7 +10,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!cedula || !password) return setError("Ingrese cédula y contraseña");
     setLoading(true);
     setError(null);
@@ -27,21 +27,58 @@ export default function LoginPage() {
     <div style={{
       minHeight: "100vh", display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",
-      background: `linear-gradient(135deg, ${COLORS.primaryDark}, ${COLORS.primary}, #0A9396)`,
-      padding: 20,
+      background: "linear-gradient(160deg, " + COLORS.primaryDark + " 0%, " + COLORS.primary + " 40%, #0A9396 100%)",
+      padding: 20, position: "relative", overflow: "hidden",
     }}>
+      {/* Background pattern */}
       <div style={{
+        position: "absolute", inset: 0, opacity: 0.035,
+        backgroundImage: "radial-gradient(circle at 2px 2px, #fff 1px, transparent 0)",
+        backgroundSize: "32px 32px",
+      }} />
+
+      {/* Decorative circles */}
+      <div style={{
+        position: "absolute", top: -60, right: -60,
+        width: 200, height: 200, borderRadius: "50%",
+        background: "rgba(255,255,255,0.04)",
+      }} />
+      <div style={{
+        position: "absolute", bottom: -40, left: -40,
+        width: 160, height: 160, borderRadius: "50%",
+        background: "rgba(255,255,255,0.03)",
+      }} />
+
+      <div className="fade-in" style={{
         background: "#fff", borderRadius: 24, padding: "36px 28px",
-        width: "100%", maxWidth: 400,
-        boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        width: "100%", maxWidth: 400, position: "relative",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.1)",
       }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>🛡️</div>
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 16, margin: "0 auto 12px",
+            background: "linear-gradient(135deg, " + COLORS.primaryDark + ", " + COLORS.primary + ")",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 4px 12px rgba(13,115,119,0.3)",
+            position: "relative",
+          }}>
+            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>P</span>
+            <div style={{
+              position: "absolute", top: -4, right: -4,
+              width: 22, height: 22, borderRadius: 8,
+              background: COLORS.green, display: "flex",
+              alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+            }}>
+              <span style={{ fontSize: 12, color: "#fff", fontWeight: 800 }}>✓</span>
+            </div>
+          </div>
           <h1 style={{
             fontSize: 28, fontWeight: 800, color: COLORS.text, margin: "0 0 4px",
-            fontFamily: "'Source Serif 4', Georgia, serif",
+            fontFamily: "'Source Serif 4', Georgia, serif", letterSpacing: -0.5,
           }}>PrevenApp</h1>
-          <p style={{ fontSize: 14, color: COLORS.textSec, margin: 0 }}>
+          <p style={{ fontSize: 14, color: COLORS.textSec, margin: 0, fontWeight: 500 }}>
             Medicina Preventiva · Macaracas
           </p>
         </div>
@@ -65,10 +102,13 @@ export default function LoginPage() {
           />
 
           {error && (
-            <div style={{
-              padding: "10px 14px", borderRadius: 10, marginBottom: 16,
+            <div className="scale-in" style={{
+              padding: "12px 14px", borderRadius: 12, marginBottom: 16,
               background: COLORS.redBg, color: COLORS.red, fontSize: 14, fontWeight: 600,
+              display: "flex", alignItems: "center", gap: 8,
+              border: "1px solid rgba(220,38,38,0.15)",
             }}>
+              <span style={{ fontSize: 16 }}>⚠</span>
               {error}
             </div>
           )}
@@ -78,10 +118,30 @@ export default function LoginPage() {
           </BigButton>
         </form>
 
-        <p style={{ textAlign: "center", fontSize: 12, color: COLORS.textSec, marginTop: 20, lineHeight: 1.5 }}>
-          Centro de Salud de Macaracas<br />
-          Región de Salud de Los Santos · MINSA
-        </p>
+        <div style={{ marginTop: 24, textAlign: "center" }}>
+          <div style={{
+            width: "100%", height: 1, background: COLORS.divider, marginBottom: 16,
+            position: "relative",
+          }}>
+            <span style={{
+              position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)",
+              background: "#fff", padding: "0 12px", fontSize: 11,
+              color: COLORS.textSec, fontWeight: 500,
+            }}>MINSA · Los Santos</span>
+          </div>
+          <p style={{ fontSize: 12, color: COLORS.textSec, margin: 0, lineHeight: 1.6 }}>
+            Centro de Salud de Macaracas<br />
+            Región de Salud de Los Santos
+          </p>
+        </div>
+      </div>
+
+      {/* Version tag */}
+      <div style={{
+        marginTop: 20, fontSize: 11, color: "rgba(255,255,255,0.5)",
+        textAlign: "center", fontWeight: 500, position: "relative",
+      }}>
+        PrevenApp v2.0 · Protocolo de Investigación
       </div>
     </div>
   );
