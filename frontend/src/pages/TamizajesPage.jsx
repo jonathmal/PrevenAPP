@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { Card, StatusBadge, BigButton, LoadingSpinner, ErrorMsg, EmptyState, COLORS, STATUS, formatDate } from "../components/UI";
 
 // ─── Expandable screening card (larger for elderly) ─────────
-function ScreeningCard({ s }) {
+function ScreeningCard({ s, groupColor }) {
   const [expanded, setExpanded] = useState(false);
   const priorityConfig = {
     alta: { color: COLORS.red, bg: COLORS.redBg, label: "Prioritario" },
@@ -21,7 +21,7 @@ function ScreeningCard({ s }) {
         borderLeft: "5px solid " + (STATUS[s.status]?.color || COLORS.border),
         cursor: "pointer",
         transition: "background 0.2s",
-        background: expanded ? COLORS.primaryLight + "40" : "transparent",
+        background: expanded ? (groupColor || "#0D7377") + "18" : (groupColor || "#0D7377") + "08",
         borderBottom: "1px solid " + COLORS.divider,
       }}
     >
@@ -163,7 +163,7 @@ function ScreeningGroup({ group, items, defaultOpen }) {
         background: COLORS.card,
       }}>
         {items.map((s, i) => (
-          <ScreeningCard key={s._id} s={s} />
+          <ScreeningCard key={s._id} s={s} groupColor={group.accent} />
         ))}
         {/* Bottom padding inside group */}
         <div style={{ height: 4 }} />
@@ -174,9 +174,9 @@ function ScreeningGroup({ group, items, defaultOpen }) {
 
 // ─── Screening group config ─────────────────────────────────
 const GROUPS = {
-  preventivo: { label: "Tamizajes Preventivos", subtitle: "Detección temprana de cáncer y riesgo cardiovascular", icon: "🔬", color: "#EDE9FE", categories: ["oncologic"] },
-  cronico: { label: "Control de Enfermedad Crónica", subtitle: "Seguimiento de HTA, DM2, síndrome metabólico", icon: "🩺", color: "#FEF3C7", categories: ["cardiovascular", "metabolic"] },
-  general: { label: "Tamizajes Generales", subtitle: "Exámenes de rutina y prevención general", icon: "📋", color: "#E8F5F5", categories: ["general"] },
+  preventivo: { label: "Tamizajes Preventivos", subtitle: "Detección temprana de cáncer y riesgo cardiovascular", icon: "🔬", color: "#EDE9FE", accent: "#8B5CF6", categories: ["oncologic"] },
+  cronico: { label: "Control de Enfermedad Crónica", subtitle: "Seguimiento de HTA, DM2, síndrome metabólico", icon: "🩺", color: "#FEF3C7", accent: "#D97706", categories: ["cardiovascular", "metabolic"] },
+  general: { label: "Tamizajes Generales", subtitle: "Exámenes de rutina y prevención general", icon: "📋", color: "#E8F5F5", accent: "#0D7377", categories: ["general"] },
 };
 
 // ═══════════════════════════════════════════════════════════

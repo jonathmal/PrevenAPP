@@ -6,14 +6,15 @@ const NAV_ITEMS_PATIENT = [
   { key: "tamizajes", label: "Tamizajes", icon: "🛡️" },
   { key: "monitor", label: "Monitor", icon: "❤️" },
   { key: "meds", label: "Meds", icon: "💊" },
+  { key: "vacunas", label: "Vacunas", icon: "💉" },
   { key: "tcc", label: "TCC", icon: "🧠" },
   { key: "perfil", label: "Perfil", icon: "👤" },
 ];
 const NAV_ITEMS_DOCTOR = [
   { key: "dashboard", label: "Pacientes", icon: "👥" },
 ];
-const TITLES = { tamizajes: "Mis Tamizajes", monitor: "Automonitoreo", meds: "Mi Medicación", tcc: "Mi Mente — TCC", perfil: "Mi Perfil", dashboard: "Dashboard Clínico" };
-const SUBTITLES = { tamizajes: "Exámenes preventivos según tu perfil", monitor: "Presión, glucosa y peso corporal", meds: "Control de adherencia diaria", tcc: "Intervención conductual digital", perfil: "Mis datos clínicos y antecedentes", dashboard: "Panel de monitoreo de pacientes" };
+const TITLES = { tamizajes: "Mis Tamizajes", monitor: "Automonitoreo", meds: "Mi Medicación", tcc: "Mi Mente — TCC", vacunas: "Vacunación", perfil: "Mi Perfil", dashboard: "Dashboard Clínico" };
+const SUBTITLES = { tamizajes: "Exámenes preventivos según tu perfil", monitor: "Presión, glucosa y peso corporal", meds: "Control de adherencia diaria", tcc: "Intervención conductual digital", vacunas: "Esquema de inmunización MINSA", perfil: "Mis datos clínicos y antecedentes", dashboard: "Panel de monitoreo de pacientes" };
 
 function bmiColor(bmi) {
   if (bmi < 18.5) return "rgba(202,138,4,0.25)";
@@ -42,8 +43,8 @@ export default function Layout({ children, activeTab, onNavigate }) {
     }
   }, [activeTab]);
 
-  const show = activeTab === "tamizajes" && !isDoctor && patient;
-  const bmi = patient?.bmi ? parseFloat(patient.bmi) : (patient?.height && patient?.weight ? parseFloat((patient.weight / Math.pow(patient.height / 100, 2)).toFixed(1)) : null);
+  const showCard = !isDoctor && patient && activeTab !== "tcc" && activeTab !== "perfil";
+  const bmi = patient?.weight && patient?.height ? parseFloat((patient.weight / Math.pow(patient.height / 100, 2)).toFixed(1)) : null;
   const diagnoses = patient?.diagnoses?.filter(d => d.isActive) || [];
   const familyHx = patient?.familyHistory || [];
 
@@ -53,7 +54,7 @@ export default function Layout({ children, activeTab, onNavigate }) {
       {/* ─── Header ──────────────────────────────────────── */}
       <div style={{
         background: isDoctor ? "linear-gradient(135deg, #1E3A5F, #2B5B8A)" : "linear-gradient(135deg, " + COLORS.primaryDark + ", " + COLORS.primary + ", #0A9396)",
-        padding: "16px 20px " + (show ? "14px" : "20px"), color: "#fff",
+        padding: "16px 20px " + (showCard ? "14px" : "20px"), color: "#fff",
         borderRadius: "0 0 24px 24px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
         position: "relative", overflow: "hidden",
       }}>
@@ -84,11 +85,11 @@ export default function Layout({ children, activeTab, onNavigate }) {
           </div>
 
           {/* ─── Patient card (Tamizajes) ─────────────────── */}
-          {show && (
+          {showCard && (
             <div style={{ marginTop: 14 }}>
 
               {/* Identity + metrics */}
-              <div style={{ padding: "14px 16px", background: "rgba(255,255,255,0.12)", backdropFilter: "blur(12px)", borderRadius: familyHx.length > 0 ? "16px 16px 0 0" : 16, border: "1px solid rgba(255,255,255,0.18)" }}>
+              <div style={{ padding: "14px 16px", background: "rgba(255,255,255,0.12)", backdropFilter: "blur(12px)", borderRadius: familyHx.length > 0 && activeTab === "tamizajes" ? "16px 16px 0 0" : 16, border: "1px solid rgba(255,255,255,0.18)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
                   <div style={{ width: 42, height: 42, borderRadius: 12, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800 }}>
                     {user?.name?.charAt(0) || "P"}
@@ -130,8 +131,8 @@ export default function Layout({ children, activeTab, onNavigate }) {
                 )}
               </div>
 
-              {/* APF — collapsible */}
-              {familyHx.length > 0 && (
+              {/* APF — collapsible, only on tamizajes */}
+              {familyHx.length > 0 && activeTab === "tamizajes" && (
                 <div style={{
                   background: "rgba(255,255,255,0.08)",
                   borderRadius: "0 0 16px 16px",
