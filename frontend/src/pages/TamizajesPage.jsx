@@ -199,7 +199,38 @@ function DoctorModeOverlay({ patient, screenings, onClose }) {
   const [resultText, setResultText] = useState("");
   const [resultDate, setResultDate] = useState(new Date().toISOString().split("T")[0]);
 
+  const [resultClassification, setResultClassification] = useState("");
+  const [suggestedNext, setSuggestedNext] = useState("");
+  const [nextDateMode, setNextDateMode] = useState("suggested"); // suggested | default | custom
+  const [customNext, setCustomNext] = useState("");
+
   const inputStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid " + COLORS.border, fontSize: 16, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+
+  const computeSuggestedDate = (screening, classification) => {
+    const base = new Date(resultDate || new Date());
+    let months = screening.normalInterval || screening.intervalMonths;
+    if (classification === "borderline") months = screening.borderlineInterval || Math.round(months * 0.5);
+    if (classification === "pathological") months = screening.pathologicalInterval || 3;
+    base.setMonth(base.getMonth() + months);
+    return { date: base.toISOString().split("T")[0], months };
+  };
+
+  const openResultForm = (screening) => {
+    setResultForm(screening._id);
+    setResultText("");
+    setResultDate(new Date().toISOString().split("T")[0]);
+    setResultClassification("");
+    setNextDateMode("suggested");
+    setCustomNext("");
+    setSuggestedNext("");
+  };
+
+  const handleClassify = (screening, cls) => {
+    setResultClassification(cls);
+    const { date, months } = computeSuggestedDate(screening, cls);
+    setSuggestedNext(date);
+    setNextDateMode("suggested");
+  };
 
   const addDx = () => {
     if (!newDx) return;
@@ -229,15 +260,25 @@ function DoctorModeOverlay({ patient, screenings, onClose }) {
     } finally { setSaving(false); }
   };
 
-  const handleCompleteScreening = async (screeningId) => {
+  const handleCompleteScreening = async (screeningId, screening) => {
     setSaving(true);
     try {
-      await api.put("/screenings/" + screeningId + "/complete", {
+      const body = {
         result: resultText || "",
         completedDate: resultDate || new Date().toISOString(),
-      });
+        resultClassification: resultClassification || undefined,
+      };
+      // Set custom next due based on mode
+      if (nextDateMode === "suggested" && suggestedNext) {
+        body.customNextDue = suggestedNext;
+      } else if (nextDateMode === "custom" && customNext) {
+        body.customNextDue = customNext;
+      }
+      // default mode = don't send customNextDue, let backend use intervalMonths
+      await api.put("/screenings/" + screeningId + "/complete", body);
       setResultForm(null);
       setResultText("");
+      setResultClassification("");
       setSaved(true);
       setTimeout(() => onClose(true), 1200);
     } catch (err) { alert("Error: " + err.message); }
@@ -363,30 +404,110 @@ function DoctorModeOverlay({ patient, screenings, onClose }) {
                         </div>
 
                         {resultForm === s._id ? (
-                          <div style={{ marginTop: 10, padding: "12px 14px", borderRadius: 12, background: COLORS.primaryLight }}>
-                            <div style={{ marginBottom: 8 }}>
-                              <label style={{ fontSize: 12, fontWeight: 700, color: COLORS.textSec }}>FECHA</label>
-                              <input type="date" value={resultDate} onChange={e => setResultDate(e.target.value)} style={{ ...inputStyle, marginTop: 4 }} />
-                            </div>
+                          <div style={{ marginTop: 10, padding: "14px", borderRadius: 14, background: COLORS.primaryLight }}>
+                            {/* Date */}
                             <div style={{ marginBottom: 10 }}>
-                              <label style={{ fontSize: 12, fontWeight: 700, color: COLORS.textSec }}>RESULTADO</label>
+                              <label style={{ fontSize: 12, fontWeight: 700, color: COLORS.textSec }}>FECHA DE REALIZACIÓN</label>
+                              <input type="date" value={resultDate} onChange={e => { setResultDate(e.target.value); if (resultClassification) handleClassify(s, resultClassification); }} style={{ ...inputStyle, marginTop: 4 }} />
+                            </div>
+
+                            {/* Classification */}
+                            <div style={{ marginBottom: 10 }}>
+                              <label style={{ fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 6, display: "block" }}>CLASIFICACIÓN DEL RESULTADO</label>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                                {[
+                                  { val: "normal", label: "Normal", color: COLORS.green, bg: COLORS.greenBg, icon: "✓" },
+                                  { val: "borderline", label: "Limítrofe", color: COLORS.yellow, bg: COLORS.yellowBg, icon: "⚠" },
+                                  { val: "pathological", label: "Patológico", color: COLORS.red, bg: COLORS.redBg, icon: "✗" },
+                                ].map(opt => (
+                                  <button key={opt.val} onClick={() => handleClassify(s, opt.val)} style={{
+                                    padding: "10px 6px", borderRadius: 10, border: resultClassification === opt.val ? "2px solid " + opt.color : "2px solid transparent",
+                                    background: resultClassification === opt.val ? opt.bg : COLORS.divider,
+                                    color: resultClassification === opt.val ? opt.color : COLORS.textSec,
+                                    fontSize: 14, fontWeight: 700, cursor: "pointer", textAlign: "center",
+                                  }}>{opt.icon} {opt.label}</button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Result text */}
+                            <div style={{ marginBottom: 10 }}>
+                              <label style={{ fontSize: 12, fontWeight: 700, color: COLORS.textSec }}>HALLAZGOS / NOTAS</label>
                               <textarea value={resultText} onChange={e => setResultText(e.target.value)}
-                                placeholder="Ej: Normal, sin hallazgos" rows={2}
+                                placeholder="Ej: LDL 145, HDL 38, TG 210" rows={2}
                                 style={{ ...inputStyle, marginTop: 4, resize: "none" }} />
                             </div>
+
+                            {/* Next date suggestion (only after classification) */}
+                            {resultClassification && (
+                              <div style={{ marginBottom: 10, padding: "12px", borderRadius: 10, background: "#fff", border: "1px solid " + COLORS.border }}>
+                                <label style={{ fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 8, display: "block" }}>PRÓXIMA REALIZACIÓN</label>
+
+                                {/* Suggested */}
+                                <button onClick={() => setNextDateMode("suggested")} style={{
+                                  display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", marginBottom: 6,
+                                  borderRadius: 10, border: nextDateMode === "suggested" ? "2px solid " + COLORS.primary : "2px solid " + COLORS.border,
+                                  background: nextDateMode === "suggested" ? COLORS.primaryLight : "#fff", cursor: "pointer", textAlign: "left",
+                                }}>
+                                  <div style={{ width: 20, height: 20, borderRadius: 10, border: "2px solid " + (nextDateMode === "suggested" ? COLORS.primary : COLORS.border), display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    {nextDateMode === "suggested" && <div style={{ width: 10, height: 10, borderRadius: 5, background: COLORS.primary }} />}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>Fecha sugerida: {suggestedNext}</div>
+                                    <div style={{ fontSize: 12, color: COLORS.textSec }}>
+                                      Basado en resultado {resultClassification === "normal" ? "normal" : resultClassification === "borderline" ? "limítrofe (seguimiento acortado)" : "patológico (seguimiento intensivo)"}
+                                    </div>
+                                  </div>
+                                </button>
+
+                                {/* Default interval */}
+                                <button onClick={() => setNextDateMode("default")} style={{
+                                  display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", marginBottom: 6,
+                                  borderRadius: 10, border: nextDateMode === "default" ? "2px solid " + COLORS.primary : "2px solid " + COLORS.border,
+                                  background: nextDateMode === "default" ? COLORS.primaryLight : "#fff", cursor: "pointer", textAlign: "left",
+                                }}>
+                                  <div style={{ width: 20, height: 20, borderRadius: 10, border: "2px solid " + (nextDateMode === "default" ? COLORS.primary : COLORS.border), display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    {nextDateMode === "default" && <div style={{ width: 10, height: 10, borderRadius: 5, background: COLORS.primary }} />}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>Frecuencia estándar</div>
+                                    <div style={{ fontSize: 12, color: COLORS.textSec }}>
+                                      {s.normalInterval === 0 ? "Tamizaje único" : "Cada " + (s.normalInterval >= 12 ? (s.normalInterval / 12) + " año(s)" : s.normalInterval + " meses")}
+                                    </div>
+                                  </div>
+                                </button>
+
+                                {/* Custom */}
+                                <button onClick={() => setNextDateMode("custom")} style={{
+                                  display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px",
+                                  borderRadius: 10, border: nextDateMode === "custom" ? "2px solid " + COLORS.primary : "2px solid " + COLORS.border,
+                                  background: nextDateMode === "custom" ? COLORS.primaryLight : "#fff", cursor: "pointer", textAlign: "left",
+                                }}>
+                                  <div style={{ width: 20, height: 20, borderRadius: 10, border: "2px solid " + (nextDateMode === "custom" ? COLORS.primary : COLORS.border), display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    {nextDateMode === "custom" && <div style={{ width: 10, height: 10, borderRadius: 5, background: COLORS.primary }} />}
+                                  </div>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>Fecha personalizada</div>
+                                </button>
+                                {nextDateMode === "custom" && (
+                                  <input type="date" value={customNext} onChange={e => setCustomNext(e.target.value)} style={{ ...inputStyle, marginTop: 6 }} />
+                                )}
+                              </div>
+                            )}
+
+                            {/* Actions */}
                             <div style={{ display: "flex", gap: 8 }}>
-                              <button onClick={() => handleCompleteScreening(s._id)} disabled={saving} style={{
+                              <button onClick={() => handleCompleteScreening(s._id, s)} disabled={saving || !resultClassification} style={{
                                 flex: 1, padding: 12, borderRadius: 10, border: "none",
-                                background: COLORS.green, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer",
-                              }}>✓ Guardar</button>
-                              <button onClick={() => { setResultForm(null); setResultText(""); }} style={{
+                                background: resultClassification ? COLORS.green : COLORS.border, color: "#fff", fontSize: 15, fontWeight: 700, cursor: resultClassification ? "pointer" : "default",
+                              }}>✓ Guardar resultado</button>
+                              <button onClick={() => { setResultForm(null); setResultText(""); setResultClassification(""); }} style={{
                                 padding: "12px 16px", borderRadius: 10, border: "2px solid " + COLORS.border,
                                 background: "#fff", fontSize: 15, fontWeight: 600, color: COLORS.textSec, cursor: "pointer",
                               }}>×</button>
                             </div>
                           </div>
                         ) : (
-                          <button onClick={() => { setResultForm(s._id); setResultText(""); setResultDate(new Date().toISOString().split("T")[0]); }}
+                          <button onClick={() => openResultForm(s)}
                             style={{
                               marginTop: 8, padding: "10px 14px", borderRadius: 10, border: "none",
                               background: COLORS.green, color: "#fff", fontSize: 15, fontWeight: 700,

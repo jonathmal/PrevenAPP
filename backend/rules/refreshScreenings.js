@@ -37,18 +37,24 @@ async function refreshScreenings(patient) {
         name: rec.name,
         category: rec.category,
         intervalMonths: rec.intervalMonths,
+        normalInterval: rec.normalInterval,
+        borderlineInterval: rec.borderlineInterval,
+        pathologicalInterval: rec.pathologicalInterval,
         reason: rec.reason,
         source: rec.source,
         priority: rec.priority,
       });
       created++;
     } else {
-      // 2. Update existing with latest reason/source/priority
+      // 2. Update existing with latest reason/source/priority/intervals
       let changed = false;
       if (rec.reason && match.reason !== rec.reason) { match.reason = rec.reason; changed = true; }
       if (rec.source && match.source !== rec.source) { match.source = rec.source; changed = true; }
       if (rec.priority && match.priority !== rec.priority) { match.priority = rec.priority; changed = true; }
       if (rec.intervalMonths !== match.intervalMonths) { match.intervalMonths = rec.intervalMonths; changed = true; }
+      if (rec.normalInterval && rec.normalInterval !== match.normalInterval) { match.normalInterval = rec.normalInterval; changed = true; }
+      if (rec.borderlineInterval && rec.borderlineInterval !== match.borderlineInterval) { match.borderlineInterval = rec.borderlineInterval; changed = true; }
+      if (rec.pathologicalInterval && rec.pathologicalInterval !== match.pathologicalInterval) { match.pathologicalInterval = rec.pathologicalInterval; changed = true; }
       if (changed) {
         await match.save();
         updated++;

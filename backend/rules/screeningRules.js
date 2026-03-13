@@ -1,272 +1,186 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- * PrevenApp v2.0 — Motor de Reglas de Tamizaje
+ * PrevenApp v2.2 — Motor de Reglas de Tamizaje (REVISADO)
  * ═══════════════════════════════════════════════════════════════
  *
- * Fuentes:
- *  - Plan Estratégico Nacional para la Prevención y Control del Cáncer 2019-2029 (MINSA Panamá)
- *  - Normas de Prevención, Detección y Seguimiento de Lesiones Preinvasoras CaCu (MINSA)
- *  - USPSTF A & B Recommendations (2024-2025)
- *  - ADA Standards of Care in Diabetes 2025
- *  - ACC/AHA Hypertension Guidelines 2017
- *  - ACS Cancer Screening Guidelines 2024
+ * Fuentes verificadas:
+ *  - MINSA Panamá: Plan Nacional Cáncer 2019-2029, Normas CaCu
+ *  - USPSTF 2021-2025 (A & B Recommendations)
+ *  - ADA Standards of Care 2025
+ *  - ACC/AHA Hypertension 2017 / Cholesterol 2018
+ *  - ACS Cancer Screening 2024
  *  - GOLD 2026 (EPOC)
+ *  - KDIGO 2024 (ERC)
+ *  - NOF/ISCD (Osteoporosis)
  *
- * Cada regla evalúa: edad, sexo, diagnósticos, antecedentes familiares,
- * hábitos tóxicos, IMC, circunferencia de cintura, y valores vitales.
+ * Cada regla retorna:
+ *  normalInterval     — meses entre tamizajes si resultado normal
+ *  borderlineInterval — meses si resultado borderline/limítrofe
+ *  pathologicalInterval — meses si resultado patológico
+ *  intervalMonths     — default (= normalInterval)
  */
 
-// ─── Helper: check if patient has a diagnosis ───────────────
-function hasDx(patient, keywords) {
-  if (!patient.diagnoses) return false;
-  return patient.diagnoses.some(d =>
-    d.isActive && keywords.some(kw =>
-      d.name.toLowerCase().includes(kw.toLowerCase()) ||
-      (d.code && d.code.toLowerCase().startsWith(kw.toLowerCase()))
-    )
-  );
+function hasDx(p, kw) {
+  return (p.diagnoses || []).some(d => d.isActive && kw.some(k => d.name.toLowerCase().includes(k.toLowerCase()) || (d.code && d.code.toLowerCase().startsWith(k.toLowerCase()))));
 }
-
-// ─── Helper: check family history ───────────────────────────
-function hasFamilyHx(patient, keywords) {
-  if (!patient.familyHistory) return false;
-  return patient.familyHistory.some(fh =>
-    keywords.some(kw => fh.condition.toLowerCase().includes(kw.toLowerCase()))
-  );
+function hasFHx(p, kw) {
+  return (p.familyHistory || []).some(f => kw.some(k => f.condition.toLowerCase().includes(k.toLowerCase())));
 }
+function isSmoker(p) { return p.riskFactors?.smoking === "current"; }
+function isSmokerOrFormer(p) { return p.riskFactors?.smoking === "current" || p.riskFactors?.smoking === "former"; }
+function packYears(p) { return ((p.riskFactors?.cigarettesPerDay || 0) / 20) * (p.riskFactors?.yearsSmoked || 0); }
+function getBMI(p) { return p.bmi ? parseFloat(p.bmi) : (p.height && p.weight ? parseFloat((p.weight / Math.pow(p.height / 100, 2)).toFixed(1)) : null); }
 
-// ─── Helper: smoking status ─────────────────────────────────
-function isSmokerOrFormer(patient) {
-  return patient.riskFactors?.smoking === "current" || patient.riskFactors?.smoking === "former";
-}
+const RULES = [
 
-function isCurrentSmoker(patient) {
-  return patient.riskFactors?.smoking === "current";
-}
+  // ════════════════════════════════════════════════════════════
+  // ONCOLÓGICOS
+  // ════════════════════════════════════════════════════════════
 
-function packYears(patient) {
-  const cpd = patient.riskFactors?.cigarettesPerDay || 0;
-  const years = patient.riskFactors?.yearsSmoked || 0;
-  return (cpd / 20) * years;
-}
-
-// ─── Helper: BMI ────────────────────────────────────────────
-function getBMI(patient) {
-  if (patient.bmi) return parseFloat(patient.bmi);
-  if (patient.height && patient.weight) {
-    return parseFloat((patient.weight / Math.pow(patient.height / 100, 2)).toFixed(1));
-  }
-  return null;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SCREENING RULES — Cada regla retorna null (no aplica) o un
-// objeto { name, category, intervalMonths, reason, source, priority }
-// ═══════════════════════════════════════════════════════════════
-
-const SCREENING_RULES = [
-
-  // ─── ONCOLÓGICOS (Preventivos) ────────────────────────────
-
-  // 1. CÁNCER DE MAMA — Mamografía
+  // 1. MAMOGRAFÍA
   (p) => {
     if (p.sex !== "F") return null;
-    const age = p.age;
-    const fhx = hasFamilyHx(p, ["mama", "breast", "brca"]);
-
-    if (fhx && age >= 30) {
-      return {
-        name: "Mamografía",
-        category: "oncologic",
+    const fhx = hasFHx(p, ["mama", "breast", "brca"]);
+    if (fhx && p.age >= 30) {
+      return { name: "Mamografía", category: "oncologic",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
-        reason: "Mujer con antecedente familiar de Ca de mama — inicio temprano",
-        source: "ACS 2024 / MINSA",
-        priority: "alta",
-      };
+        reason: "Mujer con AHF de Ca de mama — mamografía anual desde los 30",
+        source: "ACS 2024 / NCCN", priority: "alta" };
     }
-    if (age >= 40 && age <= 74) {
-      return {
-        name: "Mamografía",
-        category: "oncologic",
-        intervalMonths: age >= 55 ? 24 : 12,
-        reason: age >= 55
-          ? "Mujer 55-74 años — tamizaje bienal recomendado"
-          : "Mujer 40-54 años — tamizaje anual recomendado",
-        source: "MINSA Plan Nacional Cáncer / ACS 2024",
-        priority: age < 55 ? "alta" : "media",
-      };
+    if (p.age >= 40 && p.age <= 74) {
+      // ACS: annual 40-54, biennial 55-74; USPSTF 2024: biennial 40-74
+      const interval = p.age < 55 ? 12 : 24;
+      return { name: "Mamografía", category: "oncologic",
+        normalInterval: interval, borderlineInterval: 6, pathologicalInterval: 3,
+        intervalMonths: interval,
+        reason: p.age < 55 ? "Mujer 40-54 años — mamografía anual" : "Mujer 55-74 años — mamografía bienal",
+        source: "ACS 2024 / USPSTF 2024 / MINSA", priority: p.age < 55 ? "alta" : "media" };
     }
     return null;
   },
 
-  // 2. CÁNCER CERVICOUTERINO — Pap / VPH
+  // 2. CERVICOUTERINO (Pap / VPH)
   (p) => {
     if (p.sex !== "F") return null;
-    const age = p.age;
-
-    if (age >= 21 && age <= 29) {
-      return {
-        name: "Citología cervical (Papanicolaou)",
-        category: "oncologic",
+    if (p.age >= 21 && p.age <= 29) {
+      return { name: "Citología cervical (Papanicolaou)", category: "oncologic",
+        normalInterval: 36, borderlineInterval: 12, pathologicalInterval: 6,
         intervalMonths: 36,
         reason: "Mujer 21-29 años — Pap cada 3 años",
-        source: "USPSTF 2024 / MINSA Normas CaCu",
-        priority: "alta",
-      };
+        source: "USPSTF 2024 / MINSA Normas CaCu", priority: "alta" };
     }
-    if (age >= 30 && age <= 65) {
-      return {
-        name: "Prueba VPH / Citología cervical",
-        category: "oncologic",
+    if (p.age >= 30 && p.age <= 65) {
+      return { name: "Prueba VPH / Citología cervical", category: "oncologic",
+        normalInterval: 60, borderlineInterval: 12, pathologicalInterval: 6,
         intervalMonths: 60,
-        reason: "Mujer 30-65 años — prueba VPH cada 5 años (o Pap c/3 años)",
-        source: "USPSTF 2024 / MINSA Normas CaCu / OPS",
-        priority: "alta",
-      };
+        reason: "Mujer 30-65 años — VPH cada 5 años (alternativa: Pap c/3 años o co-test c/5 años)",
+        source: "USPSTF 2024 / OPS / MINSA", priority: "alta" };
     }
     return null;
   },
 
-  // 3. CÁNCER DE PRÓSTATA — PSA + Tacto rectal
+  // 3. PRÓSTATA (PSA + Tacto rectal)
   (p) => {
     if (p.sex !== "M") return null;
-    const age = p.age;
-    const fhx = hasFamilyHx(p, ["próstata", "prostat"]);
-
-    if (fhx && age >= 40) {
-      return {
-        name: "PSA + Tacto rectal",
-        category: "oncologic",
+    const fhx = hasFHx(p, ["próstata", "prostat"]);
+    if (fhx && p.age >= 40) {
+      return { name: "PSA + Tacto rectal", category: "oncologic",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
-        reason: "Hombre con antecedente familiar de Ca de próstata — inicio a los 40",
-        source: "MINSA Plan Nacional Cáncer / ACS 2024",
-        priority: "alta",
-      };
+        reason: "Hombre con AHF Ca de próstata — tamizaje anual desde los 40",
+        source: "ACS 2024 / MINSA", priority: "alta" };
     }
-    if (age >= 50 && age <= 75) {
-      return {
-        name: "PSA + Tacto rectal",
-        category: "oncologic",
+    if (p.age >= 50 && p.age <= 75) {
+      return { name: "PSA + Tacto rectal", category: "oncologic",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
-        reason: "Hombre ≥50 años — tamizaje anual (decisión compartida)",
-        source: "MINSA Plan Nacional Cáncer",
-        priority: "media",
-      };
+        reason: "Hombre 50-75 años — tamizaje anual (decisión compartida)",
+        source: "MINSA / ACS 2024", priority: "media" };
     }
     return null;
   },
 
-  // 4. CÁNCER COLORRECTAL — SOH / Colonoscopía
+  // 4. COLORRECTAL — SOH vs Colonoscopía
   (p) => {
-    const age = p.age;
-    const fhx = hasFamilyHx(p, ["colon", "colorrectal", "intestin"]);
-
-    if (fhx && age >= 40) {
-      return {
-        name: "Sangre oculta en heces / Colonoscopía",
-        category: "oncologic",
-        intervalMonths: 12,
-        reason: "Antecedente familiar de Ca colorrectal — SOH anual o colonoscopía c/5 años",
-        source: "ACS 2024 / USPSTF",
-        priority: "alta",
-      };
+    const fhx = hasFHx(p, ["colon", "colorrectal", "intestin"]);
+    if (fhx && p.age >= 40) {
+      return { name: "Colonoscopía", category: "oncologic",
+        normalInterval: 60, borderlineInterval: 36, pathologicalInterval: 12,
+        intervalMonths: 60,
+        reason: "AHF Ca colorrectal — colonoscopía cada 5 años (o SOH anual)",
+        source: "ACS 2024 / USPSTF / NCCN", priority: "alta" };
     }
-    if (age >= 45 && age <= 75) {
-      return {
-        name: "Sangre oculta en heces (SOH)",
-        category: "oncologic",
+    if (p.age >= 45 && p.age <= 75) {
+      return { name: "Sangre oculta en heces (SOH)", category: "oncologic",
+        normalInterval: 12, borderlineInterval: 12, pathologicalInterval: 6,
         intervalMonths: 12,
-        reason: "Adulto 45-75 años — tamizaje anual con SOH (o colonoscopía c/10 años)",
-        source: "USPSTF 2021 / MINSA",
-        priority: "media",
-      };
+        reason: "Adulto 45-75 años — SOH anual (alternativa: colonoscopía c/10 años)",
+        source: "USPSTF 2021 / MINSA", priority: "media" };
     }
     return null;
   },
 
-  // 5. CÁNCER DE PULMÓN — TAC baja dosis
+  // 5. PULMÓN — TAC baja dosis
   (p) => {
-    const age = p.age;
     const py = packYears(p);
-    const rf = p.riskFactors;
-
-    if (age >= 50 && age <= 80 && py >= 20 && (rf?.smoking === "current" || rf?.smoking === "former")) {
-      return {
-        name: "TAC de tórax de baja dosis",
-        category: "oncologic",
+    if (p.age >= 50 && p.age <= 80 && py >= 20 && isSmokerOrFormer(p)) {
+      return { name: "TAC de tórax de baja dosis", category: "oncologic",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
-        reason: `Paciente ${age} años, ${py.toFixed(0)} paquetes-año — tamizaje anual de Ca de pulmón`,
-        source: "USPSTF 2021",
-        priority: "alta",
-      };
+        reason: `${py.toFixed(0)} paquetes-año — tamizaje anual de Ca de pulmón`,
+        source: "USPSTF 2021", priority: "alta" };
     }
     return null;
   },
 
-  // ─── CARDIOVASCULAR ───────────────────────────────────────
+  // ════════════════════════════════════════════════════════════
+  // CARDIOVASCULAR
+  // ════════════════════════════════════════════════════════════
 
   // 6. PERFIL LIPÍDICO
   (p) => {
-    const age = p.age;
-    const hasRF = hasDx(p, ["hipertens", "I10", "diabetes", "E11", "metabólic"]) || isCurrentSmoker(p);
+    const hasECNT = hasDx(p, ["hipertens", "I10", "diabetes", "E11", "metabólic"]);
     const bmi = getBMI(p);
-
-    if (hasDx(p, ["hipertens", "I10", "diabetes", "E11", "metabólic"])) {
-      return {
-        name: "Perfil lipídico completo",
-        category: "cardiovascular",
+    if (hasECNT) {
+      return { name: "Perfil lipídico completo", category: "cardiovascular",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
-        reason: "Paciente con ECNT — control anual de lípidos",
-        source: "ACC/AHA 2018 / ADA 2025",
-        priority: "alta",
-      };
+        reason: "Paciente con ECNT — perfil lipídico anual",
+        source: "ACC/AHA 2018 / ADA 2025", priority: "alta" };
     }
-    if ((p.sex === "M" && age >= 35) || (p.sex === "F" && age >= 45)) {
-      return {
-        name: "Perfil lipídico completo",
-        category: "cardiovascular",
-        intervalMonths: hasRF ? 12 : 60,
-        reason: hasRF
-          ? "Adulto con factores de riesgo — perfil lipídico anual"
-          : "Tamizaje de rutina — perfil lipídico cada 5 años",
-        source: "USPSTF / ACC/AHA",
-        priority: hasRF ? "alta" : "baja",
-      };
-    }
-    if (age >= 20 && (bmi && bmi >= 25 || hasRF)) {
-      return {
-        name: "Perfil lipídico completo",
-        category: "cardiovascular",
+    if ((p.sex === "M" && p.age >= 35) || (p.sex === "F" && p.age >= 45)) {
+      return { name: "Perfil lipídico completo", category: "cardiovascular",
+        normalInterval: 60, borderlineInterval: 12, pathologicalInterval: 6,
         intervalMonths: 60,
-        reason: "Adulto joven con sobrepeso o factores de riesgo — tamizaje cada 5 años",
-        source: "USPSTF / ACC/AHA",
-        priority: "baja",
-      };
+        reason: "Tamizaje de rutina — perfil lipídico cada 5 años",
+        source: "USPSTF / ACC/AHA 2018", priority: "baja" };
+    }
+    if (p.age >= 20 && bmi && bmi >= 25) {
+      return { name: "Perfil lipídico completo", category: "cardiovascular",
+        normalInterval: 60, borderlineInterval: 12, pathologicalInterval: 6,
+        intervalMonths: 60,
+        reason: "Adulto joven con sobrepeso — tamizaje cada 5 años",
+        source: "USPSTF / ACC/AHA", priority: "baja" };
     }
     return null;
   },
 
-  // 7. ELECTROCARDIOGRAMA
+  // 7. EKG
   (p) => {
     if (hasDx(p, ["hipertens", "I10"])) {
-      return {
-        name: "Electrocardiograma (EKG)",
-        category: "cardiovascular",
+      return { name: "Electrocardiograma (EKG)", category: "cardiovascular",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
-        reason: "Paciente hipertenso — EKG anual para evaluar hipertrofia ventricular",
-        source: "ACC/AHA 2017",
-        priority: "media",
-      };
+        reason: "Paciente hipertenso — EKG anual (HVI, arritmias)",
+        source: "ACC/AHA 2017", priority: "media" };
     }
     if (hasDx(p, ["diabetes", "E11"]) && p.age >= 40) {
-      return {
-        name: "Electrocardiograma (EKG)",
-        category: "cardiovascular",
+      return { name: "Electrocardiograma (EKG)", category: "cardiovascular",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
-        reason: "Diabético ≥40 años — evaluación cardiovascular anual",
-        source: "ADA 2025",
-        priority: "media",
-      };
+        reason: "Diabético ≥40 años — evaluación CV anual",
+        source: "ADA 2025", priority: "media" };
     }
     return null;
   },
@@ -274,76 +188,61 @@ const SCREENING_RULES = [
   // 8. CREATININA / BUN / TFG
   (p) => {
     if (hasDx(p, ["hipertens", "I10", "diabetes", "E11"])) {
-      return {
-        name: "Creatinina + BUN + TFG estimada",
-        category: "cardiovascular",
+      return { name: "Creatinina + BUN + TFG estimada", category: "cardiovascular",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
-        reason: "Paciente con HTA y/o DM2 — función renal anual",
-        source: "ADA 2025 / ACC/AHA 2017 / KDIGO",
-        priority: "alta",
-      };
+        reason: "HTA y/o DM2 — función renal anual",
+        source: "ADA 2025 / KDIGO 2024 / ACC/AHA 2017", priority: "alta" };
     }
     return null;
   },
 
-  // 9. ANEURISMA AÓRTICO ABDOMINAL
+  // 9. AAA — Aneurisma aórtico abdominal
   (p) => {
     if (p.sex === "M" && p.age >= 65 && p.age <= 75 && isSmokerOrFormer(p)) {
-      return {
-        name: "Ultrasonido abdominal (tamizaje AAA)",
-        category: "cardiovascular",
-        intervalMonths: 0, // una sola vez
-        reason: "Hombre 65-75 años con historia de tabaquismo — tamizaje único de AAA",
-        source: "USPSTF 2019",
-        priority: "media",
-      };
+      return { name: "Ultrasonido abdominal (tamizaje AAA)", category: "cardiovascular",
+        normalInterval: 0, borderlineInterval: 12, pathologicalInterval: 6,
+        intervalMonths: 0,
+        reason: "Hombre 65-75 años + tabaquismo — tamizaje único de AAA",
+        source: "USPSTF 2019", priority: "media" };
     }
     return null;
   },
 
-  // ─── METABÓLICO ───────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════
+  // METABÓLICO
+  // ════════════════════════════════════════════════════════════
 
-  // 10. HbA1c
+  // 10. HbA1c (diabéticos)
   (p) => {
     if (hasDx(p, ["diabetes", "E11", "E10"])) {
-      return {
-        name: "Hemoglobina glicosilada (HbA1c)",
-        category: "metabolic",
-        intervalMonths: 3,
-        reason: "Paciente diabético — HbA1c cada 3 meses (c/6 si en meta)",
-        source: "ADA 2025",
-        priority: "alta",
-      };
+      return { name: "Hemoglobina glicosilada (HbA1c)", category: "metabolic",
+        normalInterval: 6, borderlineInterval: 3, pathologicalInterval: 3,
+        intervalMonths: 6,
+        reason: "Paciente diabético — HbA1c cada 6 meses (c/3 si fuera de meta)",
+        source: "ADA 2025", priority: "alta" };
     }
     return null;
   },
 
-  // 11. GLUCOSA EN AYUNAS — tamizaje de DM2
+  // 11. GLUCOSA EN AYUNAS — tamizaje DM2
   (p) => {
-    if (hasDx(p, ["diabetes", "E11", "E10"])) return null; // ya tiene dx
-    const age = p.age;
+    if (hasDx(p, ["diabetes", "E11", "E10"])) return null;
     const bmi = getBMI(p);
-    const fhx = hasFamilyHx(p, ["diabetes", "DM2", "DM1"]);
-
-    if (age >= 35 && bmi && bmi >= 25) {
-      return {
-        name: "Glucosa en ayunas (tamizaje DM2)",
-        category: "metabolic",
+    const fhx = hasFHx(p, ["diabetes", "DM2", "DM1"]);
+    if (p.age >= 35 && bmi && bmi >= 25) {
+      return { name: "Glucosa en ayunas (tamizaje DM2)", category: "metabolic",
+        normalInterval: 36, borderlineInterval: 12, pathologicalInterval: 3,
         intervalMonths: 36,
-        reason: "Adulto ≥35 años con sobrepeso — tamizaje de diabetes cada 3 años",
-        source: "USPSTF 2021 / ADA 2025",
-        priority: "media",
-      };
+        reason: "Adulto ≥35 años con sobrepeso — tamizaje cada 3 años",
+        source: "USPSTF 2021 / ADA 2025", priority: "media" };
     }
-    if (age >= 30 && fhx) {
-      return {
-        name: "Glucosa en ayunas (tamizaje DM2)",
-        category: "metabolic",
+    if (p.age >= 30 && fhx) {
+      return { name: "Glucosa en ayunas (tamizaje DM2)", category: "metabolic",
+        normalInterval: 36, borderlineInterval: 12, pathologicalInterval: 3,
         intervalMonths: 36,
-        reason: "Adulto con antecedente familiar de DM2 — tamizaje cada 3 años",
-        source: "ADA 2025",
-        priority: "media",
-      };
+        reason: "AHF de DM2 — tamizaje cada 3 años",
+        source: "ADA 2025", priority: "media" };
     }
     return null;
   },
@@ -351,39 +250,23 @@ const SCREENING_RULES = [
   // 12. MICROALBUMINURIA
   (p) => {
     if (hasDx(p, ["diabetes", "E11"])) {
-      return {
-        name: "Microalbuminuria (relación albúmina/creatinina)",
-        category: "metabolic",
+      return { name: "Microalbuminuria (albúmina/creatinina)", category: "metabolic",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
         reason: "Paciente diabético — tamizaje anual de nefropatía",
-        source: "ADA 2025 / KDIGO",
-        priority: "alta",
-      };
-    }
-    if (hasDx(p, ["hipertens", "I10"]) && hasDx(p, ["diabetes", "E11"])) {
-      return {
-        name: "Microalbuminuria (relación albúmina/creatinina)",
-        category: "metabolic",
-        intervalMonths: 12,
-        reason: "HTA + DM2 — alto riesgo de nefropatía",
-        source: "KDIGO / ADA 2025",
-        priority: "alta",
-      };
+        source: "ADA 2025 / KDIGO 2024", priority: "alta" };
     }
     return null;
   },
 
-  // 13. TSH — tamizaje tiroideo
+  // 13. TSH
   (p) => {
     if (p.sex === "F" && p.age >= 50) {
-      return {
-        name: "TSH (función tiroidea)",
-        category: "metabolic",
+      return { name: "TSH (función tiroidea)", category: "metabolic",
+        normalInterval: 60, borderlineInterval: 12, pathologicalInterval: 6,
         intervalMonths: 60,
-        reason: "Mujer ≥50 años — tamizaje de hipotiroidismo cada 5 años",
-        source: "ATA / AACE",
-        priority: "baja",
-      };
+        reason: "Mujer ≥50 años — tamizaje de disfunción tiroidea c/5 años",
+        source: "ATA / AACE", priority: "baja" };
     }
     return null;
   },
@@ -391,202 +274,163 @@ const SCREENING_RULES = [
   // 14. ÁCIDO ÚRICO
   (p) => {
     if (hasDx(p, ["metabólic", "E88", "gota"])) {
-      return {
-        name: "Ácido úrico sérico",
-        category: "metabolic",
+      return { name: "Ácido úrico sérico", category: "metabolic",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
-        reason: "Síndrome metabólico — control anual de ácido úrico",
-        source: "Práctica clínica",
-        priority: "baja",
-      };
+        reason: "Sx metabólico / gota — control anual",
+        source: "Práctica clínica", priority: "baja" };
     }
     return null;
   },
 
-  // ─── GENERAL ──────────────────────────────────────────────
-
-  // 15. EXAMEN FÍSICO PREVENTIVO
-  (p) => {
-    return {
-      name: "Examen físico preventivo completo",
-      category: "general",
-      intervalMonths: 12,
-      reason: "Evaluación integral anual recomendada",
-      source: "MINSA / Práctica clínica",
-      priority: "media",
-    };
-  },
-
-  // 16. DENSITOMETRÍA ÓSEA
-  (p) => {
-    if (p.sex === "F" && p.age >= 65) {
-      return {
-        name: "Densitometría ósea (DEXA)",
-        category: "general",
-        intervalMonths: 24,
-        reason: "Mujer ≥65 años — tamizaje de osteoporosis",
-        source: "USPSTF 2025",
-        priority: "media",
-      };
-    }
-    if (p.sex === "F" && p.age >= 50 && (isCurrentSmoker(p) || getBMI(p) < 20)) {
-      return {
-        name: "Densitometría ósea (DEXA)",
-        category: "general",
-        intervalMonths: 24,
-        reason: "Mujer postmenopáusica con factores de riesgo — tamizaje de osteoporosis",
-        source: "USPSTF 2025",
-        priority: "baja",
-      };
-    }
-    return null;
-  },
-
-  // 17. EXAMEN OFTALMOLÓGICO
-  (p) => {
-    if (hasDx(p, ["diabetes", "E11", "E10"])) {
-      return {
-        name: "Examen oftalmológico (fondo de ojo)",
-        category: "general",
-        intervalMonths: 12,
-        reason: "Paciente diabético — tamizaje anual de retinopatía",
-        source: "ADA 2025",
-        priority: "alta",
-      };
-    }
-    if (p.age >= 65) {
-      return {
-        name: "Examen oftalmológico",
-        category: "general",
-        intervalMonths: 24,
-        reason: "Adulto ≥65 años — evaluación visual bienal",
-        source: "AAO / AAFP",
-        priority: "baja",
-      };
-    }
-    return null;
-  },
-
-  // 18. HEMOGRAMA COMPLETO
-  (p) => {
-    if (hasDx(p, ["hipertens", "diabetes", "metabólic", "renal"])) {
-      return {
-        name: "Hemograma completo",
-        category: "general",
-        intervalMonths: 12,
-        reason: "Paciente con ECNT — hemograma anual de control",
-        source: "Práctica clínica",
-        priority: "baja",
-      };
-    }
-    return null;
-  },
-
-  // 19. DEPRESIÓN — PHQ-2 / PHQ-9
-  (p) => {
-    if (p.age >= 18) {
-      return {
-        name: "Tamizaje de depresión (PHQ-2)",
-        category: "general",
-        intervalMonths: 12,
-        reason: "Tamizaje anual de depresión en adultos",
-        source: "USPSTF 2016",
-        priority: "baja",
-      };
-    }
-    return null;
-  },
-
-  // 20. CONSEJERÍA DE CESACIÓN TABÁQUICA
-  (p) => {
-    if (isCurrentSmoker(p)) {
-      return {
-        name: "Consejería de cesación tabáquica",
-        category: "general",
-        intervalMonths: 6,
-        reason: "Fumador activo — intervención conductual de cesación",
-        source: "USPSTF 2021",
-        priority: "alta",
-      };
-    }
-    return null;
-  },
-
-  // 21. TAMIZAJE DE PREDIABETES CON IMC ≥ 25 y cintura elevada
+  // 15. PREDIABETES ALTO RIESGO
   (p) => {
     if (hasDx(p, ["diabetes", "E11", "E10"])) return null;
     const bmi = getBMI(p);
     const waist = p.waistCircumference;
-    const elevatedWaist = (p.sex === "M" && waist >= 102) || (p.sex === "F" && waist >= 88);
-
-    if (bmi && bmi >= 30 && elevatedWaist) {
-      return {
-        name: "HbA1c + Glucosa en ayunas (riesgo metabólico alto)",
-        category: "metabolic",
+    const elevW = (p.sex === "M" && waist >= 102) || (p.sex === "F" && waist >= 88);
+    if (bmi && bmi >= 30 && elevW) {
+      return { name: "HbA1c + Glucosa (riesgo metabólico)", category: "metabolic",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
         intervalMonths: 12,
-        reason: `IMC ${bmi} + cintura ${waist} cm — riesgo metabólico elevado, tamizaje anual`,
-        source: "ADA 2025 / Criterios armonizados Sx metabólico",
-        priority: "alta",
-      };
+        reason: `IMC ${bmi} + cintura ${waist} cm — riesgo metabólico alto`,
+        source: "ADA 2025 / IDF", priority: "alta" };
     }
     return null;
   },
 
-  // 22. HEPATITIS B y C (basado en factores de riesgo)
+  // ════════════════════════════════════════════════════════════
+  // GENERAL
+  // ════════════════════════════════════════════════════════════
+
+  // 16. EXAMEN FÍSICO PREVENTIVO
+  (p) => ({
+    name: "Examen físico preventivo completo", category: "general",
+    normalInterval: 12, borderlineInterval: 12, pathologicalInterval: 6,
+    intervalMonths: 12,
+    reason: "Evaluación integral anual",
+    source: "MINSA / Práctica clínica", priority: "media",
+  }),
+
+  // 17. DENSITOMETRÍA ÓSEA
+  (p) => {
+    if (p.sex === "F" && p.age >= 65) {
+      return { name: "Densitometría ósea (DEXA)", category: "general",
+        normalInterval: 60, borderlineInterval: 24, pathologicalInterval: 12,
+        intervalMonths: 60,
+        reason: "Mujer ≥65 años — tamizaje de osteoporosis c/5 años si normal",
+        source: "USPSTF 2025 / NOF", priority: "media" };
+    }
+    if (p.sex === "F" && p.age >= 50 && (isSmoker(p) || (getBMI(p) && getBMI(p) < 20))) {
+      return { name: "Densitometría ósea (DEXA)", category: "general",
+        normalInterval: 60, borderlineInterval: 24, pathologicalInterval: 12,
+        intervalMonths: 60,
+        reason: "Mujer postmenopáusica con FR — tamizaje c/5 años si normal",
+        source: "USPSTF 2025 / NOF", priority: "baja" };
+    }
+    return null;
+  },
+
+  // 18. EXAMEN OFTALMOLÓGICO
+  (p) => {
+    if (hasDx(p, ["diabetes", "E11", "E10"])) {
+      return { name: "Examen oftalmológico (fondo de ojo)", category: "general",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
+        intervalMonths: 12,
+        reason: "Diabético — fondo de ojo anual (retinopatía)",
+        source: "ADA 2025 / AAO", priority: "alta" };
+    }
+    if (p.age >= 65) {
+      return { name: "Examen oftalmológico", category: "general",
+        normalInterval: 24, borderlineInterval: 12, pathologicalInterval: 6,
+        intervalMonths: 24,
+        reason: "Adulto ≥65 años — evaluación visual bienal",
+        source: "AAO / AAFP", priority: "baja" };
+    }
+    return null;
+  },
+
+  // 19. HEMOGRAMA
+  (p) => {
+    if (hasDx(p, ["hipertens", "diabetes", "metabólic", "renal"])) {
+      return { name: "Hemograma completo", category: "general",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
+        intervalMonths: 12,
+        reason: "ECNT — hemograma anual de control",
+        source: "Práctica clínica", priority: "baja" };
+    }
+    return null;
+  },
+
+  // 20. DEPRESIÓN
+  (p) => {
+    if (p.age >= 18) {
+      return { name: "Tamizaje de depresión (PHQ-2)", category: "general",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
+        intervalMonths: 12,
+        reason: "Tamizaje anual de depresión en adultos",
+        source: "USPSTF 2016", priority: "baja" };
+    }
+    return null;
+  },
+
+  // 21. CESACIÓN TABÁQUICA
+  (p) => {
+    if (isSmoker(p)) {
+      return { name: "Consejería de cesación tabáquica", category: "general",
+        normalInterval: 6, borderlineInterval: 3, pathologicalInterval: 3,
+        intervalMonths: 6,
+        reason: "Fumador activo — intervención conductual cada 6 meses",
+        source: "USPSTF 2021", priority: "alta" };
+    }
+    return null;
+  },
+
+  // 22. HEPATITIS C
   (p) => {
     if (p.age >= 18 && p.age <= 79) {
-      return {
-        name: "Tamizaje de Hepatitis C (anti-HCV)",
-        category: "general",
-        intervalMonths: 0, // una sola vez
-        reason: "Adulto 18-79 años — tamizaje único de Hepatitis C",
-        source: "USPSTF 2020",
-        priority: "baja",
-      };
+      return { name: "Tamizaje de Hepatitis C (anti-HCV)", category: "general",
+        normalInterval: 0, borderlineInterval: 12, pathologicalInterval: 6,
+        intervalMonths: 0,
+        reason: "Adulto 18-79 años — tamizaje único",
+        source: "USPSTF 2020", priority: "baja" };
     }
     return null;
   },
 
-  // 23. ESPIROMETRÍA si fumador con síntomas respiratorios
+  // 23. ESPIROMETRÍA
   (p) => {
-    if (isCurrentSmoker(p) && p.age >= 40) {
-      return {
-        name: "Espirometría",
-        category: "general",
+    if (isSmoker(p) && p.age >= 40) {
+      return { name: "Espirometría", category: "general",
+        normalInterval: 24, borderlineInterval: 12, pathologicalInterval: 6,
         intervalMonths: 24,
-        reason: "Fumador ≥40 años — detección de EPOC",
-        source: "GOLD 2026",
-        priority: "media",
-      };
+        reason: "Fumador ≥40 años — detección de EPOC c/2 años",
+        source: "GOLD 2026", priority: "media" };
+    }
+    if (hasDx(p, ["EPOC", "J44", "asma", "J45"])) {
+      return { name: "Espirometría", category: "general",
+        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
+        intervalMonths: 12,
+        reason: "Dx de EPOC/asma — espirometría anual de seguimiento",
+        source: "GOLD 2026 / GINA", priority: "media" };
     }
     return null;
   },
 ];
 
-// ═══════════════════════════════════════════════════════════════
-// MAIN FUNCTION: Evaluate all rules for a patient
-// ═══════════════════════════════════════════════════════════════
-
 function generateScreeningsForPatient(patient) {
   const results = [];
-  const seen = new Set(); // avoid duplicates by name
-
-  for (const rule of SCREENING_RULES) {
+  const seen = new Set();
+  for (const rule of RULES) {
     try {
-      const screening = rule(patient);
-      if (screening && !seen.has(screening.name)) {
-        seen.add(screening.name);
-        results.push({
-          ...screening,
-          patient: patient._id,
-        });
+      const s = rule(patient);
+      if (s && !seen.has(s.name)) {
+        seen.add(s.name);
+        results.push({ ...s, patient: patient._id });
       }
-    } catch (err) {
-      console.error("[ScreeningRules] Error evaluating rule:", err.message);
-    }
+    } catch (err) { console.error("[ScreeningRules] Error:", err.message); }
   }
-
   return results;
 }
 
-module.exports = { generateScreeningsForPatient, SCREENING_RULES };
+module.exports = { generateScreeningsForPatient, SCREENING_RULES: RULES };

@@ -24,14 +24,31 @@ router.get("/", protect, asyncHandler(async (req, res) => {
   res.json({ success: true, data: screenings, summary });
 }));
 
-// PUT /api/screenings/:id/complete — Mark screening as completed with result
+// PUT /api/screenings/:id/complete — Mark screening as completed with result + classification
 router.put("/:id/complete", protect, asyncHandler(async (req, res) => {
-  const { result, completedDate } = req.body;
+  const { result, completedDate, resultClassification, customNextDue } = req.body;
   const screening = await Screening.findOne({ _id: req.params.id, patient: req.patient._id });
   if (!screening) return res.status(404).json({ success: false, error: "Tamizaje no encontrado" });
+
   screening.lastDone = completedDate || new Date();
   if (result !== undefined) screening.result = result;
-  await screening.save(); // pre-save hook recalculates status → green/yellow based on interval
+  if (resultClassification) {
+    screening.resultClassification = resultClassification;
+    // Adjust interval based on classification
+    if (resultClassification === "borderline" && screening.borderlineInterval) {
+      screening.intervalMonths = screening.borderlineInterval;
+    } else if (resultClassification === "pathological" && screening.pathologicalInterval) {
+      screening.intervalMonths = screening.pathologicalInterval;
+    } else if (resultClassification === "normal" && screening.normalInterval) {
+      screening.intervalMonths = screening.normalInterval;
+    }
+  }
+  if (customNextDue) {
+    screening.nextDue = new Date(customNextDue);
+    screening._customNextDue = true; // flag to skip auto-calc in pre-save
+  }
+
+  await screening.save();
   res.json({ success: true, data: screening });
 }));
 
