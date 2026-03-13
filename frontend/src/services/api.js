@@ -134,6 +134,8 @@ class ApiService {
   // ─── Doctor Dashboard ──────────────────────────────────
   getDashboardOverview() { return this.get("/dashboard/overview"); }
   getPatientDetail(patientId) { return this.get(`/dashboard/patient/${patientId}`); }
+  updatePatient(patientId, data) { return this.put(`/dashboard/patient/${patientId}`, data); }
+  updateScreeningStatus(screeningId, data) { return this.put(`/dashboard/screening/${screeningId}`, data); }
 }
 
 const api = new ApiService();

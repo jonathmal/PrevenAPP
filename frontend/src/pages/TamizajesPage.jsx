@@ -1,45 +1,178 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
-import { Card, StatusBadge, BigButton, LoadingSpinner, ErrorMsg, EmptyState, SectionTitle, COLORS, STATUS, formatDate } from "../components/UI";
+import { Card, StatusBadge, BigButton, LoadingSpinner, ErrorMsg, EmptyState, COLORS, STATUS, formatDate } from "../components/UI";
 
-// ─── Collapsible section component ──────────────────────────
-function Collapsible({ title, icon, count, defaultOpen, children, color }) {
-  const [open, setOpen] = useState(defaultOpen || false);
+// ─── Expandable screening card ──────────────────────────────
+function ScreeningCard({ s }) {
+  const [expanded, setExpanded] = useState(false);
+  const priorityConfig = {
+    alta: { color: COLORS.red, bg: COLORS.redBg, label: "Prioritario" },
+    media: { color: COLORS.yellow, bg: COLORS.yellowBg, label: "Recomendado" },
+    baja: { color: COLORS.textSec, bg: COLORS.divider, label: "Sugerido" },
+  };
+  const pConf = priorityConfig[s.priority] || priorityConfig.media;
+
+  return (
+    <div
+      onClick={() => setExpanded(!expanded)}
+      style={{
+        background: COLORS.card, borderRadius: 14, padding: "12px 14px",
+        borderLeft: "4px solid " + (STATUS[s.status]?.color || COLORS.border),
+        border: "1px solid " + COLORS.border,
+        borderLeftWidth: 4, borderLeftColor: STATUS[s.status]?.color || COLORS.border,
+        cursor: "pointer", transition: "box-shadow 0.2s",
+        boxShadow: expanded ? "0 2px 12px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
+      }}
+    >
+      {/* Collapsed: always visible */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: COLORS.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {s.name}
+            </span>
+            {s.priority && (
+              <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4, background: pConf.bg, color: pConf.color, flexShrink: 0 }}>
+                {pConf.label}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: COLORS.textSec, marginTop: 2 }}>
+            {s.intervalMonths === 0 ? "Único" : s.intervalMonths >= 12 ? "c/" + (s.intervalMonths / 12) + " año(s)" : "c/" + s.intervalMonths + " meses"}
+            {s.lastDone ? " · Últ: " + formatDate(s.lastDone) : ""}
+            {!s.lastDone && " · Nunca realizado"}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <StatusBadge status={s.status} />
+          <span style={{
+            fontSize: 12, color: COLORS.textSec,
+            transform: expanded ? "rotate(180deg)" : "rotate(0)",
+            transition: "transform 0.2s",
+          }}>▼</span>
+        </div>
+      </div>
+
+      {/* Expanded: details */}
+      <div style={{
+        maxHeight: expanded ? 300 : 0,
+        overflow: "hidden",
+        transition: "max-height 0.3s ease",
+      }}>
+        <div style={{ paddingTop: 10, borderTop: "1px solid " + COLORS.divider, marginTop: 10 }}>
+          {/* Frequency detail */}
+          <div style={{ fontSize: 12, color: COLORS.textSec, marginBottom: 6 }}>
+            <strong>Frecuencia:</strong> {s.intervalMonths === 0 ? "Tamizaje único — una sola vez en la vida" : s.intervalMonths >= 12 ? "Cada " + (s.intervalMonths / 12) + " año(s)" : "Cada " + s.intervalMonths + " meses"}
+          </div>
+
+          {/* Last done */}
+          <div style={{ fontSize: 12, color: COLORS.textSec, marginBottom: 6 }}>
+            <strong>Último realizado:</strong> {s.lastDone ? formatDate(s.lastDone) : "Nunca — pendiente de primera vez"}
+          </div>
+
+          {/* Next due */}
+          {s.nextDue && (
+            <div style={{ fontSize: 12, color: s.status === "red" ? COLORS.red : COLORS.textSec, marginBottom: 6 }}>
+              <strong>Próximo:</strong> {formatDate(s.nextDue)}
+            </div>
+          )}
+
+          {/* Reason */}
+          {s.reason && (
+            <div style={{
+              padding: "8px 10px", borderRadius: 8, marginBottom: 6,
+              background: COLORS.primaryLight, fontSize: 12, color: COLORS.primary, lineHeight: 1.5,
+            }}>
+              💡 <strong>¿Por qué?</strong> {s.reason}
+            </div>
+          )}
+
+          {/* Source */}
+          {s.source && (
+            <div style={{ fontSize: 11, color: COLORS.textSec, fontStyle: "italic", marginBottom: 6 }}>
+              📚 Fuente: {s.source}
+            </div>
+          )}
+
+          {/* Result if any */}
+          {s.result && (
+            <div style={{ fontSize: 12, color: COLORS.text, marginBottom: 6 }}>
+              <strong>Resultado:</strong> {s.result}
+            </div>
+          )}
+
+          {/* Urgent action */}
+          {s.status === "red" && (
+            <div style={{
+              padding: "8px 10px", borderRadius: 8,
+              background: COLORS.redBg, fontSize: 12, fontWeight: 600, color: COLORS.red,
+            }}>
+              ⏰ Vencido — Solicite cita para realizarlo
+            </div>
+          )}
+          {s.status === "yellow" && (
+            <div style={{
+              padding: "8px 10px", borderRadius: 8,
+              background: COLORS.yellowBg, fontSize: 12, fontWeight: 600, color: COLORS.yellow,
+            }}>
+              📅 Próximo a vencer — Programe su cita pronto
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Collapsible group ──────────────────────────────────────
+function ScreeningGroup({ group, items, defaultOpen }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const groupRed = items.filter(s => s.status === "red").length;
+  const groupYellow = items.filter(s => s.status === "yellow").length;
+  const groupGreen = items.filter(s => s.status === "green").length;
+
   return (
     <div style={{ marginBottom: 12 }}>
+      {/* Group header — clickable */}
       <button onClick={() => setOpen(!open)} style={{
         display: "flex", alignItems: "center", gap: 10, width: "100%",
         padding: "14px 16px", borderRadius: open ? "14px 14px 0 0" : 14,
-        background: color || COLORS.primaryLight, border: "none",
+        background: group.color, border: "none",
         cursor: "pointer", textAlign: "left",
-        transition: "border-radius 0.2s",
+        transition: "border-radius 0.15s",
       }}>
-        <span style={{ fontSize: 20 }}>{icon}</span>
-        <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: COLORS.text }}>{title}</span>
-        {count !== undefined && (
-          <span style={{
-            fontSize: 12, fontWeight: 700, color: COLORS.primary,
-            background: "#fff", padding: "2px 10px", borderRadius: 20,
-          }}>{count}</span>
-        )}
+        <span style={{ fontSize: 22 }}>{group.icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text, fontFamily: "'Source Serif 4', Georgia, serif" }}>
+            {group.label}
+          </div>
+          <div style={{ fontSize: 11, color: COLORS.textSec }}>{group.subtitle}</div>
+        </div>
+        {/* Mini badges */}
+        <div style={{ display: "flex", gap: 3, marginRight: 4 }}>
+          {groupRed > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: COLORS.redBg, color: COLORS.red }}>{groupRed}</span>}
+          {groupYellow > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: COLORS.yellowBg, color: COLORS.yellow }}>{groupYellow}</span>}
+          {groupGreen > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: COLORS.greenBg, color: COLORS.green }}>{groupGreen}</span>}
+        </div>
         <span style={{
-          fontSize: 14, color: COLORS.textSec,
+          fontSize: 13, color: COLORS.textSec,
           transform: open ? "rotate(180deg)" : "rotate(0deg)",
           transition: "transform 0.25s ease",
         }}>▼</span>
       </button>
+
+      {/* Group body — animated */}
       <div style={{
-        maxHeight: open ? 2000 : 0,
+        maxHeight: open ? 5000 : 0,
         overflow: "hidden",
-        transition: "max-height 0.35s ease",
-        background: "#fff",
-        borderRadius: "0 0 14px 14px",
-        border: open ? "1px solid " + COLORS.border : "none",
-        borderTop: "none",
+        transition: "max-height 0.4s ease",
       }}>
-        <div style={{ padding: open ? "12px 16px 16px" : "0 16px" }}>
-          {children}
+        <div style={{
+          padding: "10px 0",
+          display: "flex", flexDirection: "column", gap: 8,
+        }}>
+          {items.map(s => <ScreeningCard key={s._id} s={s} />)}
         </div>
       </div>
     </div>
@@ -48,35 +181,190 @@ function Collapsible({ title, icon, count, defaultOpen, children, color }) {
 
 // ─── Screening group config ─────────────────────────────────
 const GROUPS = {
-  preventivo: {
-    label: "Tamizajes Preventivos",
-    subtitle: "Detección temprana de cáncer y riesgo cardiovascular",
-    icon: "🔬",
-    color: "#EDE9FE",
-    categories: ["oncologic"],
-  },
-  cronico: {
-    label: "Control de Enfermedad Crónica",
-    subtitle: "Seguimiento de HTA, DM2, síndrome metabólico",
-    icon: "🩺",
-    color: "#FEF3C7",
-    categories: ["cardiovascular", "metabolic"],
-  },
-  general: {
-    label: "Tamizajes Generales",
-    subtitle: "Exámenes de rutina y prevención general",
-    icon: "📋",
-    color: "#E8F5F5",
-    categories: ["general"],
-  },
+  preventivo: { label: "Tamizajes Preventivos", subtitle: "Detección temprana de cáncer y riesgo CV", icon: "🔬", color: "#EDE9FE", categories: ["oncologic"] },
+  cronico: { label: "Control de Enfermedad Crónica", subtitle: "Seguimiento de HTA, DM2, síndrome metabólico", icon: "🩺", color: "#FEF3C7", categories: ["cardiovascular", "metabolic"] },
+  general: { label: "Tamizajes Generales", subtitle: "Exámenes de rutina y prevención general", icon: "📋", color: "#E8F5F5", categories: ["general"] },
 };
 
+// ═══════════════════════════════════════════════════════════
+// DOCTOR MODE OVERLAY
+// ═══════════════════════════════════════════════════════════
+const DOCTOR_PIN = "2026"; // simple PIN for offline mode
+
+function DoctorModeOverlay({ patient, onClose }) {
+  const [newDx, setNewDx] = useState("");
+  const [newDxCode, setNewDxCode] = useState("");
+  const [newFh, setNewFh] = useState("");
+  const [newFhRel, setNewFhRel] = useState("");
+  const [localDiag, setLocalDiag] = useState(patient?.diagnoses?.filter(d => d.isActive) || []);
+  const [localFhx, setLocalFhx] = useState(patient?.familyHistory || []);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "2px solid " + COLORS.border, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+
+  const addDx = () => {
+    if (!newDx) return;
+    setLocalDiag([...localDiag, { name: newDx, code: newDxCode, dateOfDiagnosis: new Date().toISOString(), isActive: true }]);
+    setNewDx(""); setNewDxCode("");
+  };
+
+  const removeDx = (idx) => {
+    setLocalDiag(localDiag.filter((_, i) => i !== idx));
+  };
+
+  const addFh = () => {
+    if (!newFh || !newFhRel) return;
+    setLocalFhx([...localFhx, { condition: newFh, relative: newFhRel }]);
+    setNewFh(""); setNewFhRel("");
+  };
+
+  const removeFh = (idx) => {
+    setLocalFhx(localFhx.filter((_, i) => i !== idx));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put("/auth/me/patient", { diagnoses: localDiag, familyHistory: localFhx });
+      setSaved(true);
+      setTimeout(() => onClose(true), 1200);
+    } catch (err) {
+      // If offline, store locally
+      try {
+        localStorage.setItem("prevenapp_pending_doctor_edit", JSON.stringify({ diagnoses: localDiag, familyHistory: localFhx, timestamp: Date.now() }));
+        setSaved(true);
+        setTimeout(() => onClose(true), 1200);
+      } catch (e) {
+        alert("Error guardando: " + err.message);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: "#fff", borderRadius: "24px 24px 0 0", padding: "20px 20px 32px",
+        width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
+      }}>
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: COLORS.border, margin: "0 auto 16px" }} />
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "linear-gradient(135deg, #1E3A5F, #2B5B8A)" }}>
+          <span style={{ fontSize: 24 }}>🩺</span>
+          <div style={{ color: "#fff" }}>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>Modo Médico</div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>Validación offline de APP y APF</div>
+          </div>
+        </div>
+
+        {saved && (
+          <div style={{ padding: 16, borderRadius: 12, background: COLORS.greenBg, textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 20, marginBottom: 4 }}>✓</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.green }}>Datos guardados</div>
+          </div>
+        )}
+
+        {!saved && (
+          <>
+            {/* APP section */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text, marginBottom: 10 }}>
+                🏥 Antecedentes Personales Patológicos
+              </div>
+              {localDiag.map((dx, i) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", marginBottom: 6,
+                  borderRadius: 10, background: COLORS.redBg,
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{dx.name}</div>
+                    {dx.code && <div style={{ fontSize: 11, color: COLORS.textSec }}>{dx.code}</div>}
+                  </div>
+                  <button onClick={() => removeDx(i)} style={{
+                    background: "none", border: "none", fontSize: 18, color: COLORS.red,
+                    cursor: "pointer", padding: "0 4px",
+                  }}>×</button>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <input type="text" value={newDx} onChange={e => setNewDx(e.target.value)} placeholder="Diagnóstico" style={{ ...inputStyle, flex: 2 }} />
+                <input type="text" value={newDxCode} onChange={e => setNewDxCode(e.target.value)} placeholder="CIE-10" style={{ ...inputStyle, flex: 1 }} />
+                <button onClick={addDx} disabled={!newDx} style={{
+                  padding: "0 14px", borderRadius: 10, border: "none",
+                  background: newDx ? "#1E3A5F" : COLORS.divider,
+                  color: newDx ? "#fff" : COLORS.textSec,
+                  fontSize: 18, fontWeight: 800, cursor: newDx ? "pointer" : "default",
+                }}>+</button>
+              </div>
+            </div>
+
+            {/* APF section */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text, marginBottom: 10 }}>
+                👨‍👩‍👧‍👦 Antecedentes Familiares
+              </div>
+              {localFhx.map((fh, i) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", marginBottom: 6,
+                  borderRadius: 10, background: "#EDE9FE",
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{fh.condition}</div>
+                    <div style={{ fontSize: 11, color: COLORS.textSec }}>{fh.relative}{fh.notes ? " — " + fh.notes : ""}</div>
+                  </div>
+                  <button onClick={() => removeFh(i)} style={{
+                    background: "none", border: "none", fontSize: 18, color: "#6366F1",
+                    cursor: "pointer", padding: "0 4px",
+                  }}>×</button>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <input type="text" value={newFh} onChange={e => setNewFh(e.target.value)} placeholder="Condición" style={{ ...inputStyle, flex: 2 }} />
+                <input type="text" value={newFhRel} onChange={e => setNewFhRel(e.target.value)} placeholder="Parentesco" style={{ ...inputStyle, flex: 1 }} />
+                <button onClick={addFh} disabled={!newFh || !newFhRel} style={{
+                  padding: "0 14px", borderRadius: 10, border: "none",
+                  background: newFh && newFhRel ? "#6366F1" : COLORS.divider,
+                  color: newFh && newFhRel ? "#fff" : COLORS.textSec,
+                  fontSize: 18, fontWeight: 800, cursor: newFh && newFhRel ? "pointer" : "default",
+                }}>+</button>
+              </div>
+            </div>
+
+            {/* Save */}
+            <BigButton onClick={handleSave} disabled={saving} icon="💾" color="#1E3A5F">
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </BigButton>
+            <button onClick={() => onClose(false)} style={{
+              width: "100%", padding: 12, marginTop: 8, borderRadius: 12,
+              border: "2px solid " + COLORS.border, background: "#fff",
+              fontSize: 14, fontWeight: 600, color: COLORS.textSec, cursor: "pointer",
+            }}>Cancelar</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAIN PAGE
+// ═══════════════════════════════════════════════════════════
 export default function TamizajesPage() {
   const { user, patient } = useAuth();
   const [screenings, setScreenings] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Doctor mode
+  const [showPinEntry, setShowPinEntry] = useState(false);
+  const [pin, setPin] = useState("");
+  const [pinError, setPinError] = useState(false);
+  const [doctorMode, setDoctorMode] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -94,11 +382,27 @@ export default function TamizajesPage() {
   useEffect(() => { load(); }, []);
 
   const handleGenerate = async () => {
-    try {
-      await api.generateScreenings();
-      load();
-    } catch (err) {
-      setError(err.message);
+    try { await api.generateScreenings(); load(); }
+    catch (err) { setError(err.message); }
+  };
+
+  const handlePinSubmit = () => {
+    if (pin === DOCTOR_PIN) {
+      setShowPinEntry(false);
+      setDoctorMode(true);
+      setPin("");
+      setPinError(false);
+    } else {
+      setPinError(true);
+      setPin("");
+    }
+  };
+
+  const handleDoctorClose = (didSave) => {
+    setDoctorMode(false);
+    if (didSave) {
+      // Reload to reflect changes
+      window.location.reload();
     }
   };
 
@@ -106,115 +410,20 @@ export default function TamizajesPage() {
   if (error) return <ErrorMsg message={error} onRetry={load} />;
 
   const total = screenings.length;
-  const completePct = total > 0 && summary
-    ? Math.round(((summary.green || 0) / total) * 100)
-    : 0;
+  const completePct = total > 0 && summary ? Math.round(((summary.green || 0) / total) * 100) : 0;
 
-  // Group screenings by category
   const grouped = {};
   for (const key of Object.keys(GROUPS)) {
     grouped[key] = screenings
       .filter(s => GROUPS[key].categories.includes(s.category))
-      .sort((a, b) => {
-        const order = { red: 0, yellow: 1, green: 2 };
-        return (order[a.status] || 2) - (order[b.status] || 2);
-      });
+      .sort((a, b) => ({ red: 0, yellow: 1, green: 2 }[a.status] || 2) - ({ red: 0, yellow: 1, green: 2 }[b.status] || 2));
   }
-
-  // Patient info
-  const diagnoses = patient?.diagnoses?.filter(d => d.isActive) || [];
-  const familyHx = patient?.familyHistory || [];
 
   return (
     <div>
-      {/* ─── Antecedentes Personales Patológicos ─────────────── */}
-      <Collapsible
-        title="Antecedentes Personales Patológicos"
-        icon="🏥"
-        count={diagnoses.length}
-        defaultOpen={false}
-        color="#FEE2E2"
-      >
-        {diagnoses.length === 0 ? (
-          <div style={{ fontSize: 13, color: COLORS.textSec, padding: "8px 0" }}>
-            No se han registrado antecedentes patológicos.
-          </div>
-        ) : (
-          <div>
-            {diagnoses.map((dx, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 0",
-                borderBottom: i < diagnoses.length - 1 ? "1px solid " + COLORS.divider : "none",
-              }}>
-                <div style={{
-                  width: 8, height: 8, borderRadius: 4, flexShrink: 0,
-                  background: dx.isActive ? COLORS.red : COLORS.textSec,
-                }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>{dx.name}</div>
-                  <div style={{ fontSize: 12, color: COLORS.textSec }}>
-                    {dx.code ? dx.code + " · " : ""}
-                    {dx.dateOfDiagnosis
-                      ? "Dx: " + new Date(dx.dateOfDiagnosis).toLocaleDateString("es-PA", { month: "short", year: "numeric" })
-                      : "Fecha no registrada"
-                    }
-                  </div>
-                </div>
-                <span style={{
-                  fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
-                  background: dx.isActive ? COLORS.redBg : COLORS.divider,
-                  color: dx.isActive ? COLORS.red : COLORS.textSec,
-                }}>
-                  {dx.isActive ? "Activo" : "Inactivo"}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Collapsible>
-
-      {/* ─── Antecedentes Familiares ─────────────────────────── */}
-      <Collapsible
-        title="Antecedentes Familiares"
-        icon="👨‍👩‍👧‍👦"
-        count={familyHx.length}
-        defaultOpen={false}
-        color="#EDE9FE"
-      >
-        {familyHx.length === 0 ? (
-          <div style={{ fontSize: 13, color: COLORS.textSec, padding: "8px 0" }}>
-            No se han registrado antecedentes familiares.
-          </div>
-        ) : (
-          <div>
-            {familyHx.map((fh, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 0",
-                borderBottom: i < familyHx.length - 1 ? "1px solid " + COLORS.divider : "none",
-              }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                  background: "#EDE9FE", display: "flex",
-                  alignItems: "center", justifyContent: "center",
-                  fontSize: 16,
-                }}>👤</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>{fh.condition}</div>
-                  <div style={{ fontSize: 12, color: COLORS.textSec }}>
-                    {fh.relative}{fh.notes ? " — " + fh.notes : ""}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Collapsible>
-
-      {/* ─── Overall progress ────────────────────────────────── */}
+      {/* ─── Progress overview ───────────────────────────────── */}
       {summary && total > 0 && (
-        <div className="fade-in" style={{ marginBottom: 16, marginTop: 8 }}>
+        <div className="fade-in" style={{ marginBottom: 16 }}>
           <div style={{
             display: "flex", alignItems: "center", gap: 14,
             padding: "14px 16px", borderRadius: 14,
@@ -230,30 +439,21 @@ export default function TamizajesPage() {
                   strokeLinecap="round" style={{ transition: "stroke-dasharray 0.6s ease" }} />
               </svg>
               <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: completePct === 100 ? COLORS.green : COLORS.primary }}>
-                  {completePct}%
-                </span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: completePct === 100 ? COLORS.green : COLORS.primary }}>{completePct}%</span>
               </div>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>
-                {completePct === 100 ? "¡Todos al día!" : "Progreso de tamizajes"}
-              </div>
-              <div style={{ fontSize: 13, color: COLORS.textSec }}>
-                {summary.green || 0} de {total} completados
-              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>{completePct === 100 ? "¡Todos al día!" : "Progreso de tamizajes"}</div>
+              <div style={{ fontSize: 13, color: COLORS.textSec }}>{summary.green || 0} de {total} completados</div>
             </div>
           </div>
-          {/* Status pills */}
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             {[
               { label: "Vencidos", val: summary.red, color: COLORS.red, bg: COLORS.redBg },
               { label: "Próximos", val: summary.yellow, color: COLORS.yellow, bg: COLORS.yellowBg },
               { label: "Al día", val: summary.green, color: COLORS.green, bg: COLORS.greenBg },
             ].map((item, i) => (
-              <div key={i} style={{
-                flex: 1, textAlign: "center", padding: "10px 6px", borderRadius: 12, background: item.bg,
-              }}>
+              <div key={i} style={{ flex: 1, textAlign: "center", padding: "10px 6px", borderRadius: 12, background: item.bg }}>
                 <div style={{ fontSize: 22, fontWeight: 800, color: item.color }}>{item.val || 0}</div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: item.color }}>{item.label}</div>
               </div>
@@ -262,139 +462,74 @@ export default function TamizajesPage() {
         </div>
       )}
 
-      {/* ─── Grouped screenings ──────────────────────────────── */}
+      {/* ─── Grouped collapsible screenings ───────────────────── */}
       {screenings.length === 0 ? (
-        <EmptyState
-          icon="🛡️"
-          message="No hay tamizajes registrados aún"
-          action={handleGenerate}
-          actionLabel="Generar tamizajes según mi perfil"
-        />
+        <EmptyState icon="🛡️" message="No hay tamizajes registrados aún" action={handleGenerate} actionLabel="Generar tamizajes según mi perfil" />
       ) : (
         Object.entries(GROUPS).map(([key, group]) => {
           const items = grouped[key];
           if (!items || items.length === 0) return null;
-          const groupRed = items.filter(s => s.status === "red").length;
-          const groupYellow = items.filter(s => s.status === "yellow").length;
-          const groupGreen = items.filter(s => s.status === "green").length;
-
-          return (
-            <div key={key} style={{ marginBottom: 20 }}>
-              {/* Group header */}
-              <div style={{
-                display: "flex", alignItems: "center", gap: 10,
-                marginBottom: 10, padding: "0 2px",
-              }}>
-                <span style={{ fontSize: 22 }}>{group.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{
-                    fontSize: 15, fontWeight: 800, color: COLORS.text,
-                    fontFamily: "'Source Serif 4', Georgia, serif",
-                  }}>{group.label}</div>
-                  <div style={{ fontSize: 12, color: COLORS.textSec }}>{group.subtitle}</div>
-                </div>
-                {/* Mini status summary */}
-                <div style={{ display: "flex", gap: 4 }}>
-                  {groupRed > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: COLORS.redBg, color: COLORS.red }}>
-                      {groupRed}
-                    </span>
-                  )}
-                  {groupYellow > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: COLORS.yellowBg, color: COLORS.yellow }}>
-                      {groupYellow}
-                    </span>
-                  )}
-                  {groupGreen > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: COLORS.greenBg, color: COLORS.green }}>
-                      {groupGreen}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Screening cards */}
-              <div className="stagger" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {items.map(s => {
-                  const priorityConfig = {
-                    alta: { color: COLORS.red, bg: COLORS.redBg, label: "Prioritario" },
-                    media: { color: COLORS.yellow, bg: COLORS.yellowBg, label: "Recomendado" },
-                    baja: { color: COLORS.textSec, bg: COLORS.divider, label: "Sugerido" },
-                  };
-                  const pConf = priorityConfig[s.priority] || priorityConfig.media;
-
-                  return (
-                    <Card key={s._id} style={{
-                      padding: 14,
-                      borderLeft: "4px solid " + (STATUS[s.status]?.color || COLORS.border),
-                    }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                            <span style={{ fontWeight: 700, fontSize: 15, color: COLORS.text }}>
-                              {s.name}
-                            </span>
-                            {s.priority && (
-                              <span style={{
-                                fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
-                                background: pConf.bg, color: pConf.color,
-                              }}>{pConf.label}</span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: 12, color: COLORS.textSec }}>
-                            {s.intervalMonths === 0
-                              ? "Único — una sola vez"
-                              : s.intervalMonths >= 12
-                                ? "Cada " + (s.intervalMonths / 12) + " año(s)"
-                                : "Cada " + s.intervalMonths + " meses"
-                            }
-                          </div>
-                          {s.lastDone ? (
-                            <div style={{ fontSize: 12, color: COLORS.textSec, marginTop: 3 }}>
-                              Último: {formatDate(s.lastDone)}
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: 12, color: COLORS.red, marginTop: 3, fontWeight: 600 }}>
-                              Nunca realizado
-                            </div>
-                          )}
-                        </div>
-                        <StatusBadge status={s.status} />
-                      </div>
-
-                      {/* Reason (why this screening was recommended) */}
-                      {s.reason && (
-                        <div style={{
-                          marginTop: 8, padding: "6px 10px", borderRadius: 8,
-                          background: COLORS.primaryLight, fontSize: 12, color: COLORS.primary,
-                          lineHeight: 1.5,
-                        }}>
-                          💡 {s.reason}
-                        </div>
-                      )}
-
-                      {/* Source guideline */}
-                      {s.source && (
-                        <div style={{ marginTop: 4, fontSize: 10, color: COLORS.textSec, fontStyle: "italic" }}>
-                          Fuente: {s.source}
-                        </div>
-                      )}
-
-                      {s.status === "red" && (
-                        <div style={{
-                          marginTop: 6, padding: "7px 10px", borderRadius: 8,
-                          background: COLORS.redBg, fontSize: 12, fontWeight: 600, color: COLORS.red,
-                        }}>
-                          ⏰ Vencido — Solicite cita para realizarlo
-                        </div>
-                      )}
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          );
+          // Default open if there are any red items
+          const hasUrgent = items.some(s => s.status === "red");
+          return <ScreeningGroup key={key} group={group} items={items} defaultOpen={hasUrgent} />;
         })
+      )}
+
+      {/* ─── Doctor mode trigger ─────────────────────────────── */}
+      <div style={{ marginTop: 24, textAlign: "center" }}>
+        <button onClick={() => setShowPinEntry(true)} style={{
+          background: "none", border: "none", fontSize: 12, color: COLORS.textSec,
+          cursor: "pointer", padding: "8px 16px", opacity: 0.6,
+          textDecoration: "underline",
+        }}>
+          🩺 Acceso médico
+        </button>
+      </div>
+
+      {/* ─── PIN entry modal ─────────────────────────────────── */}
+      {showPinEntry && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => { setShowPinEntry(false); setPin(""); setPinError(false); }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: "#fff", borderRadius: 20, padding: "28px 24px",
+            width: "100%", maxWidth: 320, textAlign: "center",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+          }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🩺</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text, marginBottom: 4 }}>Modo Médico</div>
+            <div style={{ fontSize: 13, color: COLORS.textSec, marginBottom: 20 }}>
+              Ingrese el PIN para validar datos clínicos
+            </div>
+
+            <input
+              type="password" inputMode="numeric" maxLength={4}
+              value={pin} onChange={e => { setPin(e.target.value.replace(/\D/g, "")); setPinError(false); }}
+              onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
+              placeholder="• • • •"
+              autoFocus
+              style={{
+                width: "100%", padding: 16, borderRadius: 14, textAlign: "center",
+                border: "2px solid " + (pinError ? COLORS.red : COLORS.border),
+                fontSize: 28, fontWeight: 800, letterSpacing: 12,
+                outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+              }}
+            />
+            {pinError && (
+              <div style={{ fontSize: 13, color: COLORS.red, fontWeight: 600, marginTop: 8 }}>
+                PIN incorrecto
+              </div>
+            )}
+
+            <BigButton onClick={handlePinSubmit} disabled={pin.length < 4} icon="→" color="#1E3A5F" style={{ marginTop: 16 }}>
+              Ingresar
+            </BigButton>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Doctor mode overlay ─────────────────────────────── */}
+      {doctorMode && patient && (
+        <DoctorModeOverlay patient={patient} onClose={handleDoctorClose} />
       )}
     </div>
   );

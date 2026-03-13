@@ -7,6 +7,7 @@ import TamizajesPage from "./pages/TamizajesPage";
 import MonitorPage from "./pages/MonitorPage";
 import MedsPage from "./pages/MedsPage";
 import TCCPage from "./pages/TCCPage";
+import ProfilePage from "./pages/ProfilePage";
 import DashboardPage from "./pages/DashboardPage";
 
 function AppContent() {
@@ -23,6 +24,7 @@ function AppContent() {
         monitor: <MonitorPage />,
         meds: <MedsPage />,
         tcc: <TCCPage />,
+        perfil: <ProfilePage />,
       };
 
   const validTab = pages[activeTab] ? activeTab : (isDoctor ? "dashboard" : "tamizajes");

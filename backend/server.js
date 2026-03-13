@@ -16,7 +16,25 @@ app.set("trust proxy", 1);
 // ─── Security & Middleware ───────────────────────────────
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "*",
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+
+    const allowed = (process.env.FRONTEND_URL || "")
+      .split(",")
+      .map(u => u.trim())
+      .filter(Boolean);
+
+    // Also allow any *.vercel.app preview deployments
+    if (
+      allowed.some(u => origin === u) ||
+      origin.endsWith(".vercel.app")
+    ) {
+      return callback(null, true);
+    }
+
+    callback(new Error("CORS: origin " + origin + " not allowed"));
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: "10mb" }));

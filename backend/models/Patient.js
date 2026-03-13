@@ -6,32 +6,64 @@ const PatientSchema = new mongoose.Schema({
   dateOfBirth: { type: Date, required: true },
   sex: { type: String, enum: ["M", "F"], required: true },
   address: { type: String, trim: true },
-  // Clinical
+  bloodType: { type: String, enum: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", ""], default: "" },
+  // Clinical — APP
   diagnoses: [{
     name: { type: String, required: true },
     code: String, // ICD-10
     dateOfDiagnosis: Date,
     isActive: { type: Boolean, default: true },
+    selfReported: { type: Boolean, default: false },
+    validated: { type: Boolean, default: false },
   }],
+  // Allergies
+  allergies: [{
+    name: { type: String, required: true },
+    severity: { type: String, enum: ["leve", "moderada", "severa"], default: "moderada" },
+    selfReported: { type: Boolean, default: false },
+    validated: { type: Boolean, default: false },
+  }],
+  // Surgical history
+  surgicalHistory: [{
+    procedure: { type: String, required: true },
+    year: Number,
+    notes: String,
+    selfReported: { type: Boolean, default: false },
+    validated: { type: Boolean, default: false },
+  }],
+  // Risk factors
   riskFactors: {
     smoking: { type: String, enum: ["never", "former", "current"], default: "never" },
     cigarettesPerDay: { type: Number, default: 0 },
     yearsSmoked: { type: Number, default: 0 },
+    alcohol: { type: String, enum: ["never", "occasional", "moderate", "heavy"], default: "never" },
+    exercise: { type: String, enum: ["sedentary", "light", "moderate", "active"], default: "sedentary" },
+    exerciseMinutesPerWeek: { type: Number, default: 0 },
+    diet: { type: String, enum: ["poor", "regular", "good", "excellent"], default: "regular" },
     familyHistoryCancer: { type: Boolean, default: false },
-    familyHistoryCancerType: [String], // ["breast", "prostate", "colon"]
+    familyHistoryCancerType: [String],
     ethnicity: String,
   },
+  // APF
   familyHistory: [{
-    condition: { type: String, required: true }, // "HTA", "DM2", "Ca mama", etc.
-    relative: { type: String }, // "madre", "padre", "hermano/a", "abuelo/a"
+    condition: { type: String, required: true },
+    relative: { type: String },
     notes: String,
+    selfReported: { type: Boolean, default: false },
+    validated: { type: Boolean, default: false },
   }],
+  // Emergency contact
+  emergencyContact: {
+    name: String,
+    phone: String,
+    relationship: String,
+  },
   // Anthropometrics (latest)
   height: Number, // cm
   weight: Number, // kg
   waistCircumference: Number, // cm
   // Study enrollment
-  studyId: String, // Anonymous code for research
+  studyId: String,
   enrollmentDate: Date,
   consentSigned: { type: Boolean, default: false },
   // TCC progress
