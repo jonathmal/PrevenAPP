@@ -85,12 +85,22 @@ router.put("/patient/:patientId", asyncHandler(async (req, res) => {
 
 // PUT /api/dashboard/screening/:screeningId — Doctor marks screening completed with result
 router.put("/screening/:screeningId", asyncHandler(async (req, res) => {
-  const { lastDone, result } = req.body;
+  const { lastDone, result, resultClassification, customNextDue } = req.body;
   const screening = await Screening.findById(req.params.screeningId);
   if (!screening) return res.status(404).json({ success: false, error: "Tamizaje no encontrado" });
   if (lastDone) screening.lastDone = lastDone;
   if (result !== undefined) screening.result = result;
-  await screening.save(); // pre-save recalculates status based on lastDone + intervalMonths
+  if (resultClassification) {
+    screening.resultClassification = resultClassification;
+    if (resultClassification === "borderline" && screening.borderlineInterval) screening.intervalMonths = screening.borderlineInterval;
+    else if (resultClassification === "pathological" && screening.pathologicalInterval) screening.intervalMonths = screening.pathologicalInterval;
+    else if (resultClassification === "normal" && screening.normalInterval) screening.intervalMonths = screening.normalInterval;
+  }
+  if (customNextDue) {
+    screening.nextDue = new Date(customNextDue);
+    screening._customNextDue = true;
+  }
+  await screening.save();
   res.json({ success: true, data: screening });
 }));
 

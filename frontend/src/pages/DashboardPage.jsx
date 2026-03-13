@@ -141,23 +141,51 @@ function PatientDetail({ patientId, onBack }) {
 
   useEffect(() => { load(); }, [patientId]);
 
-  const handleCompleteScreening = async (screeningId, result, dateStr) => {
+  const handleCompleteScreening = async (screening) => {
     setSaving(true);
     try {
-      await api.updateScreeningStatus(screeningId, {
-        lastDone: dateStr || new Date().toISOString(),
-        result: result || "",
-      });
+      const body = {
+        lastDone: resultDate || new Date().toISOString(),
+        result: resultText || "",
+        resultClassification: resultClassification || undefined,
+      };
+      if (nextDateMode === "suggested" && suggestedNext) body.customNextDue = suggestedNext;
+      else if (nextDateMode === "custom" && customNext) body.customNextDue = customNext;
+      await api.updateScreeningStatus(resultForm.id, body);
       setResultForm(null);
       load();
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
 
-  // Result form state: { screeningId, screeningName }
   const [resultForm, setResultForm] = useState(null);
   const [resultText, setResultText] = useState("");
   const [resultDate, setResultDate] = useState(new Date().toISOString().split("T")[0]);
+  const [resultClassification, setResultClassification] = useState("");
+  const [nextDateMode, setNextDateMode] = useState("suggested");
+  const [suggestedNext, setSuggestedNext] = useState("");
+  const [customNext, setCustomNext] = useState("");
+
+  const computeSuggested = (s, cls) => {
+    const base = new Date(resultDate || new Date());
+    let months = s.normalInterval || s.intervalMonths || 12;
+    if (cls === "borderline") months = s.borderlineInterval || Math.round(months * 0.5);
+    if (cls === "pathological") months = s.pathologicalInterval || 3;
+    base.setMonth(base.getMonth() + months);
+    return base.toISOString().split("T")[0];
+  };
+
+  const openResultForm = (s) => {
+    setResultForm({ id: s._id, name: s.name, screening: s });
+    setResultText(""); setResultDate(new Date().toISOString().split("T")[0]);
+    setResultClassification(""); setNextDateMode("suggested"); setSuggestedNext(""); setCustomNext("");
+  };
+
+  const handleClassify = (s, cls) => {
+    setResultClassification(cls);
+    setSuggestedNext(computeSuggested(s, cls));
+    setNextDateMode("suggested");
+  };
 
   const handleUpdatePatient = async (field, value) => {
     setSaving(true);
@@ -284,7 +312,7 @@ function PatientDetail({ patientId, onBack }) {
                         <StatusBadge status={s.status} />
                       </div>
                       {status !== "green" && (
-                        <button onClick={() => { setResultForm({ id: s._id, name: s.name }); setResultText(""); setResultDate(new Date().toISOString().split("T")[0]); }} disabled={saving}
+                        <button onClick={() => openResultForm(s)} disabled={saving}
                           style={{
                             marginTop: 8, padding: "8px 12px", borderRadius: 8, border: "none",
                             background: COLORS.green, color: "#fff", fontSize: 12, fontWeight: 700,
@@ -305,29 +333,80 @@ function PatientDetail({ patientId, onBack }) {
             );
           })}
 
-          {/* Result input form modal */}
+          {/* Result input form modal with classification */}
           {resultForm && (
             <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
               onClick={() => setResultForm(null)}>
-              <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 400, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
                 <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text, marginBottom: 4 }}>📝 Registrar Resultado</div>
                 <div style={{ fontSize: 14, color: COLORS.primary, fontWeight: 600, marginBottom: 16 }}>{resultForm.name}</div>
 
+                {/* Date */}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 4 }}>FECHA DE REALIZACIÓN</label>
-                  <input type="date" value={resultDate} onChange={e => setResultDate(e.target.value)}
+                  <input type="date" value={resultDate} onChange={e => { setResultDate(e.target.value); if (resultClassification) handleClassify(resultForm.screening, resultClassification); }}
                     style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "2px solid " + COLORS.border, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 4 }}>RESULTADO / HALLAZGOS</label>
+                {/* Classification */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 6 }}>CLASIFICACIÓN</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                    {[
+                      { val: "normal", label: "Normal", color: COLORS.green, bg: COLORS.greenBg, icon: "✓" },
+                      { val: "borderline", label: "Limítrofe", color: COLORS.yellow, bg: COLORS.yellowBg, icon: "⚠" },
+                      { val: "pathological", label: "Patológico", color: COLORS.red, bg: COLORS.redBg, icon: "✗" },
+                    ].map(opt => (
+                      <button key={opt.val} onClick={() => handleClassify(resultForm.screening, opt.val)} style={{
+                        padding: "10px 6px", borderRadius: 10, border: resultClassification === opt.val ? "2px solid " + opt.color : "2px solid transparent",
+                        background: resultClassification === opt.val ? opt.bg : COLORS.divider,
+                        color: resultClassification === opt.val ? opt.color : COLORS.textSec,
+                        fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "center",
+                      }}>{opt.icon} {opt.label}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Result text */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 4 }}>HALLAZGOS</label>
                   <textarea value={resultText} onChange={e => setResultText(e.target.value)}
-                    placeholder="Ej: Normal, sin hallazgos patológicos" rows={3}
+                    placeholder="Ej: LDL 145 mg/dL, HDL 38 mg/dL" rows={2}
                     style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "2px solid " + COLORS.border, fontSize: 14, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
                 </div>
 
-                <BigButton onClick={() => handleCompleteScreening(resultForm.id, resultText, resultDate)} disabled={saving} icon="✓" color={COLORS.green}>
-                  {saving ? "Guardando..." : "Guardar y marcar como realizado"}
+                {/* Next date (only after classification) */}
+                {resultClassification && (
+                  <div style={{ marginBottom: 14, padding: "12px", borderRadius: 12, background: COLORS.primaryLight }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 8 }}>PRÓXIMA REALIZACIÓN</label>
+                    {[
+                      { mode: "suggested", label: "Fecha sugerida: " + suggestedNext, sub: "Según resultado " + (resultClassification === "normal" ? "normal" : resultClassification === "borderline" ? "limítrofe" : "patológico") },
+                      { mode: "default", label: "Frecuencia estándar", sub: resultForm.screening?.normalInterval === 0 ? "Tamizaje único" : "Cada " + ((resultForm.screening?.normalInterval || 12) >= 12 ? ((resultForm.screening?.normalInterval || 12) / 12) + " año(s)" : (resultForm.screening?.normalInterval || 12) + " meses") },
+                      { mode: "custom", label: "Fecha personalizada" },
+                    ].map(opt => (
+                      <button key={opt.mode} onClick={() => setNextDateMode(opt.mode)} style={{
+                        display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", marginBottom: 4,
+                        borderRadius: 8, border: nextDateMode === opt.mode ? "2px solid " + COLORS.primary : "2px solid " + COLORS.border,
+                        background: nextDateMode === opt.mode ? "#fff" : "transparent", cursor: "pointer", textAlign: "left",
+                      }}>
+                        <div style={{ width: 18, height: 18, borderRadius: 9, border: "2px solid " + (nextDateMode === opt.mode ? COLORS.primary : COLORS.border), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {nextDateMode === opt.mode && <div style={{ width: 8, height: 8, borderRadius: 4, background: COLORS.primary }} />}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{opt.label}</div>
+                          {opt.sub && <div style={{ fontSize: 11, color: COLORS.textSec }}>{opt.sub}</div>}
+                        </div>
+                      </button>
+                    ))}
+                    {nextDateMode === "custom" && (
+                      <input type="date" value={customNext} onChange={e => setCustomNext(e.target.value)}
+                        style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "2px solid " + COLORS.border, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit", marginTop: 4 }} />
+                    )}
+                  </div>
+                )}
+
+                <BigButton onClick={() => handleCompleteScreening(resultForm.screening)} disabled={saving || !resultClassification} icon="✓" color={resultClassification ? COLORS.green : COLORS.border}>
+                  {saving ? "Guardando..." : "Guardar resultado"}
                 </BigButton>
                 <button onClick={() => setResultForm(null)} style={{ width: "100%", padding: 12, marginTop: 8, borderRadius: 10, border: "2px solid " + COLORS.border, background: "#fff", fontSize: 14, fontWeight: 600, color: COLORS.textSec, cursor: "pointer" }}>
                   Cancelar
