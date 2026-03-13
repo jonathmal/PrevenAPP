@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { Card, StatusBadge, BigButton, LoadingSpinner, ErrorMsg, EmptyState, COLORS, STATUS, formatDate } from "../components/UI";
+import ICD10Search from "../components/ICD10Search";
 
 // ─── Expandable screening card (larger for elderly) ─────────
 function ScreeningCard({ s, groupColor }) {
@@ -258,10 +259,18 @@ function DoctorModeOverlay({ patient, onClose }) {
                   <button onClick={() => removeDx(i)} style={{ background: "none", border: "none", fontSize: 22, color: COLORS.red, cursor: "pointer", padding: "0 4px" }}>×</button>
                 </div>
               ))}
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <input type="text" value={newDx} onChange={e => setNewDx(e.target.value)} placeholder="Diagnóstico" style={{ ...inputStyle, flex: 2 }} />
-                <input type="text" value={newDxCode} onChange={e => setNewDxCode(e.target.value)} placeholder="CIE-10" style={{ ...inputStyle, flex: 1 }} />
-                <button onClick={addDx} disabled={!newDx} style={{ padding: "0 16px", borderRadius: 12, border: "none", background: newDx ? "#1E3A5F" : COLORS.divider, color: newDx ? "#fff" : COLORS.textSec, fontSize: 22, fontWeight: 800, cursor: newDx ? "pointer" : "default" }}>+</button>
+              <div style={{ marginTop: 10 }}>
+                <ICD10Search
+                  placeholder="Buscar diagnóstico CIE-10..."
+                  onSelect={(item) => {
+                    setLocalDiag([...localDiag, { name: item.name, code: item.code, dateOfDiagnosis: new Date().toISOString(), isActive: true }]);
+                  }}
+                />
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <input type="text" value={newDx} onChange={e => setNewDx(e.target.value)} placeholder="O escribir manualmente" style={{ ...inputStyle, flex: 2 }} />
+                  <input type="text" value={newDxCode} onChange={e => setNewDxCode(e.target.value)} placeholder="CIE-10" style={{ ...inputStyle, flex: 1 }} />
+                  <button onClick={addDx} disabled={!newDx} style={{ padding: "0 16px", borderRadius: 12, border: "none", background: newDx ? "#1E3A5F" : COLORS.divider, color: newDx ? "#fff" : COLORS.textSec, fontSize: 22, fontWeight: 800, cursor: newDx ? "pointer" : "default" }}>+</button>
+                </div>
               </div>
             </div>
 

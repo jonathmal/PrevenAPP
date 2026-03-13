@@ -101,4 +101,48 @@ router.put("/screening/:screeningId/validate", asyncHandler(async (req, res) => 
   res.json({ success: true, data: screening });
 }));
 
+// ─── ICD-10 Search ─────────────────────────────────────────
+const ICD10_CODES = require("../data/icd10");
+
+router.get("/icd10", asyncHandler(async (req, res) => {
+  const q = (req.query.q || "").toLowerCase().trim();
+  if (!q || q.length < 2) return res.json({ success: true, data: [] });
+  const results = ICD10_CODES.filter(c =>
+    c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+  ).slice(0, 15);
+  res.json({ success: true, data: results });
+}));
+
+// ─── Doctor Medication Management ──────────────────────────
+const { Medication } = require("../models");
+
+router.post("/patient/:patientId/medications", asyncHandler(async (req, res) => {
+  const patient = await Patient.findById(req.params.patientId);
+  if (!patient) return res.status(404).json({ success: false, error: "Paciente no encontrado" });
+  const med = await Medication.create({ ...req.body, patient: patient._id, addedBy: "doctor", addedByName: req.user.name });
+  res.status(201).json({ success: true, data: med });
+}));
+
+router.delete("/patient/:patientId/medications/:medId", asyncHandler(async (req, res) => {
+  const med = await Medication.findOneAndUpdate({ _id: req.params.medId, patient: req.params.patientId }, { isActive: false, endDate: new Date() }, { new: true });
+  if (!med) return res.status(404).json({ success: false, error: "Medicamento no encontrado" });
+  res.json({ success: true, data: med });
+}));
+
+// ─── Validate patient-reported items ────────────────────────
+router.put("/patient/:patientId/validate", asyncHandler(async (req, res) => {
+  const { field, index } = req.body;
+  const patient = await Patient.findById(req.params.patientId);
+  if (!patient) return res.status(404).json({ success: false, error: "Paciente no encontrado" });
+  const allowed = ["diagnoses", "familyHistory", "allergies", "surgicalHistory"];
+  if (!allowed.includes(field) || index === undefined) return res.status(400).json({ success: false, error: "Campo o índice inválido" });
+  if (patient[field] && patient[field][index]) {
+    patient[field][index].validated = true;
+    patient[field][index].validatedBy = req.user.name;
+    patient[field][index].validatedAt = new Date();
+    await patient.save();
+  }
+  res.json({ success: true, data: patient });
+}));
+
 module.exports = router;

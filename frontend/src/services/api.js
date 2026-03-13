@@ -96,6 +96,7 @@ class ApiService {
   // ─── Medications ───────────────────────────────────────
   getMedications() { return this.get("/medications"); }
   addMedication(data) { return this.post("/medications", data); }
+  deleteMedication(id) { return this.del("/medications/" + id); }
   logMedDose(medicationId, scheduledTime, taken) {
     return this.post("/medications/log", { medicationId, scheduledTime, taken });
   }
@@ -105,7 +106,7 @@ class ApiService {
   // ─── Screenings ────────────────────────────────────────
   getScreenings() { return this.get("/screenings"); }
   completeScreening(id, completedDate) {
-    return this.put(`/screenings/${id}/complete`, { completedDate });
+    return this.put("/screenings/" + id + "/complete", { completedDate });
   }
   generateScreenings() { return this.post("/screenings/generate"); }
 
@@ -120,10 +121,10 @@ class ApiService {
   createSMARTGoal(data) { return this.post("/tcc/goals", data); }
   getSMARTGoals(status) { return this.get("/tcc/goals", status ? { status } : {}); }
   checkinGoal(goalId, completed, notes) {
-    return this.put(`/tcc/goals/${goalId}/checkin`, { completed, notes });
+    return this.put("/tcc/goals/" + goalId + "/checkin", { completed, notes });
   }
   completeGoal(goalId, status, notes) {
-    return this.put(`/tcc/goals/${goalId}/complete`, { status, completionNotes: notes });
+    return this.put("/tcc/goals/" + goalId + "/complete", { status, completionNotes: notes });
   }
 
   recordHungerScale(data) { return this.post("/tcc/hunger", data); }
@@ -133,9 +134,13 @@ class ApiService {
 
   // ─── Doctor Dashboard ──────────────────────────────────
   getDashboardOverview() { return this.get("/dashboard/overview"); }
-  getPatientDetail(patientId) { return this.get(`/dashboard/patient/${patientId}`); }
-  updatePatient(patientId, data) { return this.put(`/dashboard/patient/${patientId}`, data); }
-  updateScreeningStatus(screeningId, data) { return this.put(`/dashboard/screening/${screeningId}`, data); }
+  getPatientDetail(patientId) { return this.get("/dashboard/patient/" + patientId); }
+  updatePatient(patientId, data) { return this.put("/dashboard/patient/" + patientId, data); }
+  updateScreeningStatus(screeningId, data) { return this.put("/dashboard/screening/" + screeningId, data); }
+  searchICD10(q) { return this.get("/dashboard/icd10", { q }); }
+  addPatientMedication(patientId, data) { return this.post("/dashboard/patient/" + patientId + "/medications", data); }
+  deletePatientMedication(patientId, medId) { return this.del("/dashboard/patient/" + patientId + "/medications/" + medId); }
+  validatePatientItem(patientId, field, index) { return this.put("/dashboard/patient/" + patientId + "/validate", { field, index }); }
 }
 
 const api = new ApiService();
