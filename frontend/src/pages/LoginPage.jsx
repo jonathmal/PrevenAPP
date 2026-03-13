@@ -56,24 +56,15 @@ export default function LoginPage() {
       }}>
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: 16, margin: "0 auto 12px",
-            background: "linear-gradient(135deg, " + COLORS.primaryDark + ", " + COLORS.primary + ")",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 12px rgba(13,115,119,0.3)",
-            position: "relative",
-          }}>
-            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>P</span>
-            <div style={{
-              position: "absolute", top: -4, right: -4,
-              width: 22, height: 22, borderRadius: 8,
-              background: COLORS.green, display: "flex",
-              alignItems: "center", justifyContent: "center",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-            }}>
-              <span style={{ fontSize: 12, color: "#fff", fontWeight: 800 }}>✓</span>
-            </div>
-          </div>
+          <img
+            src="/icon-512.png"
+            alt="PrevenApp"
+            style={{
+              width: 80, height: 80, borderRadius: 18, margin: "0 auto 12px",
+              display: "block",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            }}
+          />
           <h1 style={{
             fontSize: 28, fontWeight: 800, color: COLORS.text, margin: "0 0 4px",
             fontFamily: "'Source Serif 4', Georgia, serif", letterSpacing: -0.5,

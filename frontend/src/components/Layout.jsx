@@ -63,7 +63,7 @@ export default function Layout({ children, activeTab, onNavigate }) {
           {/* Top row */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{isDoctor ? "🩺" : "🛡️"}</div>
+              <img src="/icon-192.png" alt="PrevenApp" style={{ width: 36, height: 36, borderRadius: 10 }} />
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.5 }}>PrevenApp</div>
                 <div style={{ fontSize: 10, opacity: 0.7 }}>v2.0 · Macaracas</div>

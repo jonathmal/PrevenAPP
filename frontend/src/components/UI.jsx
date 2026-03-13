@@ -285,11 +285,7 @@ export function InstallPrompt() {
         boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)",
         border: "1px solid " + COLORS.border,
       }}>
-        <div style={{
-          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-          background: COLORS.primary, display: "flex", alignItems: "center",
-          justifyContent: "center", fontSize: 22, color: "#fff", fontWeight: 800,
-        }}>P</div>
+        <img src="/icon-192.png" alt="PrevenApp" style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>Instalar PrevenApp</div>
           <div style={{ fontSize: 12, color: COLORS.textSec }}>Acceso rápido desde su pantalla</div>
