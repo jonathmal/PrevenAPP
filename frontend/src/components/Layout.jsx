@@ -29,13 +29,19 @@ const SUBTITLES = {
   dashboard: "Panel de monitoreo de pacientes",
 };
 
+function classifyBMIColor(bmi) {
+  if (bmi < 18.5) return { color: COLORS.yellow, bg: "rgba(202,138,4,0.2)" };
+  if (bmi < 25) return { color: "#16A34A", bg: "rgba(22,163,74,0.2)" };
+  if (bmi < 30) return { color: COLORS.yellow, bg: "rgba(202,138,4,0.2)" };
+  return { color: "#DC2626", bg: "rgba(220,38,38,0.2)" };
+}
+
 export default function Layout({ children, activeTab, onNavigate }) {
-  const { user, logout, isDoctor } = useAuth();
+  const { user, patient, logout, isDoctor } = useAuth();
   const navItems = isDoctor ? NAV_ITEMS_DOCTOR : NAV_ITEMS_PATIENT;
   const [pageKey, setPageKey] = useState(activeTab);
   const contentRef = useRef(null);
 
-  // Animate page transition
   useEffect(() => {
     if (contentRef.current) {
       contentRef.current.style.opacity = "0";
@@ -52,9 +58,9 @@ export default function Layout({ children, activeTab, onNavigate }) {
     }
   }, [activeTab]);
 
-  const today = new Date().toLocaleDateString("es-PA", {
-    weekday: "long", day: "numeric", month: "long",
-  });
+  const showPatientCard = activeTab === "tamizajes" && !isDoctor && patient;
+  const bmi = patient?.bmi ? parseFloat(patient.bmi) : (patient?.height && patient?.weight ? parseFloat((patient.weight / Math.pow(patient.height / 100, 2)).toFixed(1)) : null);
+  const bmiStyle = bmi ? classifyBMIColor(bmi) : null;
 
   return (
     <div style={{
@@ -68,12 +74,12 @@ export default function Layout({ children, activeTab, onNavigate }) {
         background: isDoctor
           ? "linear-gradient(135deg, #1E3A5F, #2B5B8A)"
           : "linear-gradient(135deg, " + COLORS.primaryDark + ", " + COLORS.primary + ", #0A9396)",
-        padding: "16px 20px 20px", color: "#fff",
+        padding: "16px 20px " + (showPatientCard ? "14px" : "20px"), color: "#fff",
         borderRadius: "0 0 24px 24px",
         boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
         position: "relative", overflow: "hidden",
       }}>
-        {/* Subtle pattern overlay */}
+        {/* Pattern */}
         <div style={{
           position: "absolute", inset: 0, opacity: 0.04,
           backgroundImage: "radial-gradient(circle at 2px 2px, #fff 1px, transparent 0)",
@@ -110,7 +116,6 @@ export default function Layout({ children, activeTab, onNavigate }) {
                 background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
                 borderRadius: 8, padding: "6px 10px", color: "rgba(255,255,255,0.8)",
                 fontSize: 11, cursor: "pointer", fontWeight: 600,
-                transition: "background 0.2s",
               }}>Salir</button>
             </div>
           </div>
@@ -121,9 +126,77 @@ export default function Layout({ children, activeTab, onNavigate }) {
               {TITLES[activeTab] || "PrevenApp"}
             </div>
             <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2, fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>
-              {SUBTITLES[activeTab] || today}
+              {SUBTITLES[activeTab]}
             </div>
           </div>
+
+          {/* ─── Patient card (Tamizajes only) ───────────────── */}
+          {showPatientCard && (
+            <div style={{
+              marginTop: 14, padding: "14px 16px",
+              background: "rgba(255,255,255,0.12)",
+              backdropFilter: "blur(12px)",
+              borderRadius: 16,
+              border: "1px solid rgba(255,255,255,0.18)",
+            }}>
+              {/* Name row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <div style={{
+                  width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                  background: "rgba(255,255,255,0.2)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 18, fontWeight: 800, color: "#fff",
+                }}>
+                  {user?.name?.charAt(0) || "P"}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 16, fontWeight: 800,
+                    fontFamily: "'Source Serif 4', Georgia, serif",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>
+                    {user?.name || "Paciente"}
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 500 }}>
+                    {patient.age ? patient.age + " años" : ""}
+                    {patient.age ? " · " : ""}
+                    {patient.sex === "M" ? "Masculino" : patient.sex === "F" ? "Femenino" : ""}
+                    {patient.studyId ? " · " + patient.studyId : ""}
+                  </div>
+                </div>
+              </div>
+
+              {/* Metrics pills */}
+              {(patient.height || patient.weight) && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {patient.height && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 8,
+                      background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.9)",
+                    }}>📏 {patient.height} cm</span>
+                  )}
+                  {patient.weight && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 8,
+                      background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.9)",
+                    }}>⚖️ {patient.weight} kg</span>
+                  )}
+                  {bmi && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 8,
+                      background: bmiStyle.bg, color: "#fff",
+                    }}>IMC {bmi}</span>
+                  )}
+                  {patient.waistCircumference && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 8,
+                      background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.9)",
+                    }}>📐 CC: {patient.waistCircumference} cm</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -156,13 +229,11 @@ export default function Layout({ children, activeTab, onNavigate }) {
               gap: 2, padding: "8px 0 6px", border: "none", background: "none", cursor: "pointer",
               position: "relative",
             }}>
-              {/* Active indicator line on top */}
               {isActive && (
                 <div style={{
                   position: "absolute", top: -1, left: "25%", right: "25%",
                   height: 3, borderRadius: "0 0 2px 2px",
                   background: COLORS.primary,
-                  transition: "all 0.2s",
                 }} />
               )}
               <span style={{
@@ -174,7 +245,6 @@ export default function Layout({ children, activeTab, onNavigate }) {
               <span style={{
                 fontSize: 10, fontWeight: isActive ? 800 : 500,
                 color: isActive ? COLORS.primary : COLORS.textSec,
-                transition: "color 0.2s",
               }}>{item.label}</span>
             </button>
           );

@@ -122,74 +122,11 @@ export default function TamizajesPage() {
   }
 
   // Patient info
-  const age = patient?.age;
-  const sexLabel = patient?.sex === "M" ? "Masculino" : patient?.sex === "F" ? "Femenino" : "—";
-  const bmi = patient?.bmi;
   const diagnoses = patient?.diagnoses?.filter(d => d.isActive) || [];
   const familyHx = patient?.familyHistory || [];
 
   return (
     <div>
-      {/* ─── Patient identity card ───────────────────────────── */}
-      <Card className="fade-in" style={{
-        marginBottom: 16, padding: "18px 16px",
-        background: "linear-gradient(135deg, " + COLORS.primaryLight + ", #fff)",
-        borderTop: "4px solid " + COLORS.primary,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 14, flexShrink: 0,
-            background: COLORS.primary, display: "flex",
-            alignItems: "center", justifyContent: "center",
-            fontSize: 22, color: "#fff", fontWeight: 800,
-          }}>
-            {user?.name?.charAt(0) || "P"}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize: 17, fontWeight: 800, color: COLORS.text,
-              fontFamily: "'Source Serif 4', Georgia, serif",
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}>
-              {user?.name || "Paciente"}
-            </div>
-            <div style={{ fontSize: 13, color: COLORS.textSec }}>
-              {age ? age + " años" : ""}{age ? " · " : ""}{sexLabel}
-              {patient?.studyId ? " · ID: " + patient.studyId : ""}
-            </div>
-          </div>
-        </div>
-        {/* Anthropometrics row */}
-        {(patient?.height || patient?.weight) && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {patient?.height && (
-              <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.primary, background: "#fff", padding: "3px 10px", borderRadius: 8 }}>
-                📏 {patient.height} cm
-              </span>
-            )}
-            {patient?.weight && (
-              <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.primary, background: "#fff", padding: "3px 10px", borderRadius: 8 }}>
-                ⚖️ {patient.weight} kg
-              </span>
-            )}
-            {bmi && (
-              <span style={{
-                fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 8,
-                background: bmi < 25 ? COLORS.greenBg : bmi < 30 ? COLORS.yellowBg : COLORS.redBg,
-                color: bmi < 25 ? COLORS.green : bmi < 30 ? COLORS.yellow : COLORS.red,
-              }}>
-                IMC {bmi}
-              </span>
-            )}
-            {patient?.waistCircumference && (
-              <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.primary, background: "#fff", padding: "3px 10px", borderRadius: 8 }}>
-                📐 CC: {patient.waistCircumference} cm
-              </span>
-            )}
-          </div>
-        )}
-      </Card>
-
       {/* ─── Antecedentes Personales Patológicos ─────────────── */}
       <Collapsible
         title="Antecedentes Personales Patológicos"
