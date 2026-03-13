@@ -21,6 +21,11 @@ const PatientSchema = new mongoose.Schema({
     familyHistoryCancerType: [String], // ["breast", "prostate", "colon"]
     ethnicity: String,
   },
+  familyHistory: [{
+    condition: { type: String, required: true }, // "HTA", "DM2", "Ca mama", etc.
+    relative: { type: String }, // "madre", "padre", "hermano/a", "abuelo/a"
+    notes: String,
+  }],
   // Anthropometrics (latest)
   height: Number, // cm
   weight: Number, // kg

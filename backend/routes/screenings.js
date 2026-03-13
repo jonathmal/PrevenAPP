@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const { asyncHandler, protect, authorize } = require("../middleware");
+const { asyncHandler, protect } = require("../middleware");
 const Screening = require("../models/Screening");
+const { generateScreeningsForPatient } = require("../rules/screeningRules");
 
-// POST /api/screenings — Add a screening record
+// POST /api/screenings — Add a screening record manually
 router.post("/", protect, asyncHandler(async (req, res) => {
   const screening = await Screening.create({ ...req.body, patient: req.patient._id });
   res.status(201).json({ success: true, data: screening });
@@ -13,7 +14,7 @@ router.post("/", protect, asyncHandler(async (req, res) => {
 router.get("/", protect, asyncHandler(async (req, res) => {
   const screenings = await Screening.find({ patient: req.patient._id, isActive: true })
     .sort({ status: 1 }); // red first
-  
+
   const summary = {
     total: screenings.length,
     red: screenings.filter(s => s.status === "red").length,
@@ -24,7 +25,7 @@ router.get("/", protect, asyncHandler(async (req, res) => {
   res.json({ success: true, data: screenings, summary });
 }));
 
-// PUT /api/screenings/:id — Update screening (e.g., mark as done)
+// PUT /api/screenings/:id — Update screening
 router.put("/:id", protect, asyncHandler(async (req, res) => {
   const screening = await Screening.findOneAndUpdate(
     { _id: req.params.id, patient: req.patient._id },
@@ -48,80 +49,77 @@ router.put("/:id/complete", protect, asyncHandler(async (req, res) => {
   res.json({ success: true, data: screening });
 }));
 
-// POST /api/screenings/generate — Auto-generate screenings based on patient profile
+// ═══════════════════════════════════════════════════════════════
+// POST /api/screenings/generate — Auto-generate screenings using
+// the rules engine based on complete patient profile
+// ═══════════════════════════════════════════════════════════════
 router.post("/generate", protect, asyncHandler(async (req, res) => {
   const patient = req.patient;
-  const age = patient.age;
-  const sex = patient.sex;
-  const hasHTN = patient.diagnoses?.some(d => d.name.toLowerCase().includes("hipertens") && d.isActive);
-  const hasDM = patient.diagnoses?.some(d => d.name.toLowerCase().includes("diabetes") && d.isActive);
-  const rules = [];
 
-  // Cervical cancer screening (women)
-  if (sex === "F") {
-    if (age >= 30 && age <= 49) {
-      rules.push({ name: "Prueba VPH", category: "oncologic", intervalMonths: 60 });
-    }
-    if ((age >= 21 && age < 30) || age > 50) {
-      rules.push({ name: "Papanicolau", category: "oncologic", intervalMonths: 36 });
-    }
-  }
+  // Run the rules engine
+  const recommended = generateScreeningsForPatient(patient);
 
-  // Breast cancer (women 40-74)
-  if (sex === "F" && age >= 40 && age <= 74) {
-    rules.push({ name: "Mamografía", category: "oncologic", intervalMonths: 24 });
-  }
-
-  // Prostate (men 50+, or 40+ with risk)
-  if (sex === "M" && age >= 50) {
-    rules.push({ name: "PSA + Tacto Rectal", category: "oncologic", intervalMonths: 12 });
-  }
-
-  // Cardiovascular (hypertensive or diabetic)
-  if (hasHTN || hasDM) {
-    rules.push({ name: "Perfil Lipídico", category: "cardiovascular", intervalMonths: 12 });
-    rules.push({ name: "Creatinina + EKG", category: "cardiovascular", intervalMonths: 12 });
-  } else if (age >= 40) {
-    rules.push({ name: "Perfil Lipídico", category: "cardiovascular", intervalMonths: 36 });
-  }
-
-  // HbA1c for diabetics
-  if (hasDM) {
-    rules.push({ name: "Hemoglobina Glicosilada (HbA1c)", category: "metabolic", intervalMonths: 6 });
-    rules.push({ name: "Microalbuminuria", category: "metabolic", intervalMonths: 12 });
-  }
-
-  // Lung screening (smokers with high IPA)
-  const rf = patient.riskFactors;
-  if (rf && rf.smoking === "current" && rf.cigarettesPerDay && rf.yearsSmoked) {
-    const ipa = (rf.cigarettesPerDay * rf.yearsSmoked) / 20;
-    if (ipa > 20 && age >= 50 && age <= 80) {
-      rules.push({ name: "TAC Tórax Baja Dosis", category: "oncologic", intervalMonths: 12 });
-    }
-  }
-
-  // AAA screening (men, smoker, 65-75)
-  if (sex === "M" && rf?.smoking !== "never" && age >= 65 && age <= 75) {
-    rules.push({ name: "Ultrasonido Aorta Abdominal", category: "cardiovascular", intervalMonths: 0 }); // one-time
-  }
-
-  // General preventive
-  rules.push({ name: "Examen Físico Preventivo", category: "general", intervalMonths: 12 });
-
-  // Create screenings that don't already exist
+  // Find existing screenings to avoid duplicates
   const existing = await Screening.find({ patient: patient._id, isActive: true });
-  const existingNames = existing.map(s => s.name);
-  const newRules = rules.filter(r => !existingNames.includes(r.name));
+  const existingNames = new Set(existing.map(s => s.name.toLowerCase()));
 
+  // Create only new screenings
   const created = [];
-  for (const rule of newRules) {
-    const s = await Screening.create({ ...rule, patient: patient._id });
-    created.push(s);
+  for (const rec of recommended) {
+    // Check for name match (case-insensitive, partial matching for renamed screenings)
+    const alreadyExists = existingNames.has(rec.name.toLowerCase()) ||
+      existing.some(e => {
+        const eName = e.name.toLowerCase();
+        const rName = rec.name.toLowerCase();
+        // Fuzzy match: if 70%+ of the words match
+        const eWords = eName.split(/\s+/);
+        const rWords = rName.split(/\s+/);
+        const matches = rWords.filter(w => eWords.some(ew => ew.includes(w) || w.includes(ew)));
+        return matches.length >= Math.min(eWords.length, rWords.length) * 0.6;
+      });
+
+    if (!alreadyExists) {
+      const screening = await Screening.create({
+        patient: patient._id,
+        name: rec.name,
+        category: rec.category,
+        intervalMonths: rec.intervalMonths,
+        reason: rec.reason,
+        source: rec.source,
+        priority: rec.priority,
+      });
+      created.push(screening);
+    }
   }
+
+  // Also update existing screenings with reason/source if they don't have them
+  for (const ex of existing) {
+    if (!ex.reason) {
+      const match = recommended.find(r =>
+        r.name.toLowerCase() === ex.name.toLowerCase()
+      );
+      if (match) {
+        ex.reason = match.reason;
+        ex.source = match.source;
+        ex.priority = match.priority;
+        await ex.save();
+      }
+    }
+  }
+
+  // Return all screenings
+  const allScreenings = await Screening.find({ patient: patient._id, isActive: true })
+    .sort({ status: 1 });
 
   res.json({
     success: true,
-    data: { created: created.length, existing: existing.length, screenings: [...existing, ...created] },
+    data: {
+      created: created.length,
+      existing: existing.length,
+      total: allScreenings.length,
+      rulesEvaluated: recommended.length,
+      screenings: allScreenings,
+    },
   });
 }));
 

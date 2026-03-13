@@ -10,6 +10,9 @@ const ScreeningSchema = new mongoose.Schema({
   status: { type: String, enum: ["green", "yellow", "red"], default: "red" },
   result: String, // latest result notes
   orderedBy: String,
+  reason: String, // why this screening was recommended
+  source: String, // guideline source (USPSTF, MINSA, ADA, etc.)
+  priority: { type: String, enum: ["alta", "media", "baja"], default: "media" },
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 
