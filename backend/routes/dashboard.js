@@ -114,7 +114,6 @@ router.get("/icd10", asyncHandler(async (req, res) => {
 }));
 
 // ─── Doctor Medication Management ──────────────────────────
-const { Medication } = require("../models");
 
 router.post("/patient/:patientId/medications", asyncHandler(async (req, res) => {
   const patient = await Patient.findById(req.params.patientId);
