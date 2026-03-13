@@ -10,6 +10,9 @@ const { errorHandler } = require("./middleware");
 // ─── Initialize Express ──────────────────────────────────
 const app = express();
 
+// Trust Render's reverse proxy (required for express-rate-limit + X-Forwarded-For)
+app.set("trust proxy", 1);
+
 // ─── Security & Middleware ───────────────────────────────
 app.use(helmet());
 app.use(cors({
