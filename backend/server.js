@@ -70,6 +70,18 @@ app.use("/api/screenings", require("./routes/screenings"));
 app.use("/api/tcc", require("./routes/tcc"));
 app.use("/api/dashboard", require("./routes/dashboard"));
 
+// ICD-10 search — accessible by any authenticated user (patient + doctor)
+const { protect: authProtect } = require("./middleware");
+const ICD10_CODES = require("./data/icd10");
+app.get("/api/icd10", authProtect, (req, res) => {
+  const q = (req.query.q || "").toLowerCase().trim();
+  if (!q || q.length < 2) return res.json({ success: true, data: [] });
+  const results = ICD10_CODES.filter(c =>
+    c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+  ).slice(0, 15);
+  res.json({ success: true, data: results });
+});
+
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({

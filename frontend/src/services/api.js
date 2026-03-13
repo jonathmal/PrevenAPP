@@ -137,7 +137,7 @@ class ApiService {
   getPatientDetail(patientId) { return this.get("/dashboard/patient/" + patientId); }
   updatePatient(patientId, data) { return this.put("/dashboard/patient/" + patientId, data); }
   updateScreeningStatus(screeningId, data) { return this.put("/dashboard/screening/" + screeningId, data); }
-  searchICD10(q) { return this.get("/dashboard/icd10", { q }); }
+  searchICD10(q) { return this.get("/icd10", { q }); }
   addPatientMedication(patientId, data) { return this.post("/dashboard/patient/" + patientId + "/medications", data); }
   deletePatientMedication(patientId, medId) { return this.del("/dashboard/patient/" + patientId + "/medications/" + medId); }
   validatePatientItem(patientId, field, index) { return this.put("/dashboard/patient/" + patientId + "/validate", { field, index }); }

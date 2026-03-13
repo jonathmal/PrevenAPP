@@ -185,7 +185,8 @@ const GROUPS = {
 // ═══════════════════════════════════════════════════════════
 const DOCTOR_PIN = "2026";
 
-function DoctorModeOverlay({ patient, onClose }) {
+function DoctorModeOverlay({ patient, screenings, onClose }) {
+  const [tab, setTab] = useState("clinical"); // clinical | screenings
   const [newDx, setNewDx] = useState("");
   const [newDxCode, setNewDxCode] = useState("");
   const [newFh, setNewFh] = useState("");
@@ -194,6 +195,9 @@ function DoctorModeOverlay({ patient, onClose }) {
   const [localFhx, setLocalFhx] = useState(patient?.familyHistory || []);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [resultForm, setResultForm] = useState(null);
+  const [resultText, setResultText] = useState("");
+  const [resultDate, setResultDate] = useState(new Date().toISOString().split("T")[0]);
 
   const inputStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid " + COLORS.border, fontSize: 16, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
 
@@ -225,9 +229,26 @@ function DoctorModeOverlay({ patient, onClose }) {
     } finally { setSaving(false); }
   };
 
+  const handleCompleteScreening = async (screeningId) => {
+    setSaving(true);
+    try {
+      await api.put("/screenings/" + screeningId + "/complete", {
+        result: resultText || "",
+        completedDate: resultDate || new Date().toISOString(),
+      });
+      setResultForm(null);
+      setResultText("");
+      setSaved(true);
+      setTimeout(() => onClose(true), 1200);
+    } catch (err) { alert("Error: " + err.message); }
+    finally { setSaving(false); }
+  };
+
+  const pendingScreenings = (screenings || []).filter(s => s.status === "red" || s.status === "yellow");
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-      onClick={onClose}>
+      onClick={() => onClose(false)}>
       <div onClick={e => e.stopPropagation()} style={{
         background: "#fff", borderRadius: "24px 24px 0 0", padding: "20px 20px 32px",
         width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
@@ -237,66 +258,150 @@ function DoctorModeOverlay({ patient, onClose }) {
           <span style={{ fontSize: 28 }}>🩺</span>
           <div style={{ color: "#fff" }}>
             <div style={{ fontSize: 18, fontWeight: 800 }}>Modo Médico</div>
-            <div style={{ fontSize: 14, opacity: 0.8 }}>Validación offline de APP y APF</div>
+            <div style={{ fontSize: 14, opacity: 0.8 }}>Validar datos y registrar tamizajes</div>
           </div>
         </div>
 
         {saved ? (
-          <div style={{ padding: 20, borderRadius: 14, background: COLORS.greenBg, textAlign: "center", marginBottom: 16 }}>
+          <div style={{ padding: 20, borderRadius: 14, background: COLORS.greenBg, textAlign: "center" }}>
             <div style={{ fontSize: 28, marginBottom: 4 }}>✓</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: COLORS.green }}>Datos guardados</div>
           </div>
         ) : (
           <>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, marginBottom: 12 }}>🏥 Antecedentes Personales Patológicos</div>
-              {localDiag.map((dx, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", marginBottom: 8, borderRadius: 12, background: COLORS.redBg }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>{dx.name}</div>
-                    {dx.code && <div style={{ fontSize: 13, color: COLORS.textSec }}>{dx.code}</div>}
-                  </div>
-                  <button onClick={() => removeDx(i)} style={{ background: "none", border: "none", fontSize: 22, color: COLORS.red, cursor: "pointer", padding: "0 4px" }}>×</button>
-                </div>
+            {/* Tabs */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+              {[
+                { key: "clinical", label: "APP / APF", icon: "🏥" },
+                { key: "screenings", label: "Tamizajes (" + pendingScreenings.length + ")", icon: "🛡️" },
+              ].map(t => (
+                <button key={t.key} onClick={() => setTab(t.key)} style={{
+                  flex: 1, padding: "12px 8px", borderRadius: 12, border: "none",
+                  background: tab === t.key ? "#1E3A5F" : COLORS.divider,
+                  color: tab === t.key ? "#fff" : COLORS.textSec,
+                  fontSize: 14, fontWeight: 700, cursor: "pointer",
+                }}>{t.icon} {t.label}</button>
               ))}
-              <div style={{ marginTop: 10 }}>
-                <ICD10Search
-                  placeholder="Buscar diagnóstico CIE-10..."
-                  onSelect={(item) => {
-                    setLocalDiag([...localDiag, { name: item.name, code: item.code, dateOfDiagnosis: new Date().toISOString(), isActive: true }]);
-                  }}
-                />
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <input type="text" value={newDx} onChange={e => setNewDx(e.target.value)} placeholder="O escribir manualmente" style={{ ...inputStyle, flex: 2 }} />
-                  <input type="text" value={newDxCode} onChange={e => setNewDxCode(e.target.value)} placeholder="CIE-10" style={{ ...inputStyle, flex: 1 }} />
-                  <button onClick={addDx} disabled={!newDx} style={{ padding: "0 16px", borderRadius: 12, border: "none", background: newDx ? "#1E3A5F" : COLORS.divider, color: newDx ? "#fff" : COLORS.textSec, fontSize: 22, fontWeight: 800, cursor: newDx ? "pointer" : "default" }}>+</button>
-                </div>
-              </div>
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, marginBottom: 12 }}>👨‍👩‍👧‍👦 Antecedentes Familiares</div>
-              {localFhx.map((fh, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", marginBottom: 8, borderRadius: 12, background: "#EDE9FE" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>{fh.condition}</div>
-                    <div style={{ fontSize: 13, color: COLORS.textSec }}>{fh.relative}{fh.notes ? " — " + fh.notes : ""}</div>
+            {/* ─── Clinical tab ─────────────────────────── */}
+            {tab === "clinical" && (
+              <>
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, marginBottom: 12 }}>🏥 Antecedentes Personales Patológicos</div>
+                  {localDiag.map((dx, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", marginBottom: 8, borderRadius: 12, background: COLORS.redBg }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>{dx.name}</div>
+                        {dx.code && <div style={{ fontSize: 13, color: COLORS.textSec }}>{dx.code}</div>}
+                      </div>
+                      <button onClick={() => removeDx(i)} style={{ background: "none", border: "none", fontSize: 22, color: COLORS.red, cursor: "pointer", padding: "0 4px" }}>×</button>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 10 }}>
+                    <ICD10Search
+                      placeholder="Buscar diagnóstico CIE-10..."
+                      onSelect={(item) => {
+                        setLocalDiag([...localDiag, { name: item.name, code: item.code, dateOfDiagnosis: new Date().toISOString(), isActive: true }]);
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <input type="text" value={newDx} onChange={e => setNewDx(e.target.value)} placeholder="O escribir manualmente" style={{ ...inputStyle, flex: 2 }} />
+                      <input type="text" value={newDxCode} onChange={e => setNewDxCode(e.target.value)} placeholder="CIE-10" style={{ ...inputStyle, flex: 1 }} />
+                      <button onClick={addDx} disabled={!newDx} style={{ padding: "0 16px", borderRadius: 12, border: "none", background: newDx ? "#1E3A5F" : COLORS.divider, color: newDx ? "#fff" : COLORS.textSec, fontSize: 22, fontWeight: 800, cursor: newDx ? "pointer" : "default" }}>+</button>
+                    </div>
                   </div>
-                  <button onClick={() => removeFh(i)} style={{ background: "none", border: "none", fontSize: 22, color: "#6366F1", cursor: "pointer", padding: "0 4px" }}>×</button>
                 </div>
-              ))}
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <input type="text" value={newFh} onChange={e => setNewFh(e.target.value)} placeholder="Condición" style={{ ...inputStyle, flex: 2 }} />
-                <input type="text" value={newFhRel} onChange={e => setNewFhRel(e.target.value)} placeholder="Parentesco" style={{ ...inputStyle, flex: 1 }} />
-                <button onClick={addFh} disabled={!newFh || !newFhRel} style={{ padding: "0 16px", borderRadius: 12, border: "none", background: newFh && newFhRel ? "#6366F1" : COLORS.divider, color: newFh && newFhRel ? "#fff" : COLORS.textSec, fontSize: 22, fontWeight: 800, cursor: newFh && newFhRel ? "pointer" : "default" }}>+</button>
-              </div>
-            </div>
 
-            <BigButton onClick={handleSave} disabled={saving} icon="💾" color="#1E3A5F">
-              {saving ? "Guardando..." : "Guardar cambios"}
-            </BigButton>
-            <button onClick={() => onClose(false)} style={{ width: "100%", padding: 14, marginTop: 8, borderRadius: 14, border: "2px solid " + COLORS.border, background: "#fff", fontSize: 16, fontWeight: 600, color: COLORS.textSec, cursor: "pointer" }}>
-              Cancelar
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, marginBottom: 12 }}>👨‍👩‍👧‍👦 Antecedentes Familiares</div>
+                  {localFhx.map((fh, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", marginBottom: 8, borderRadius: 12, background: "#EDE9FE" }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>{fh.condition}</div>
+                        <div style={{ fontSize: 13, color: COLORS.textSec }}>{fh.relative}{fh.notes ? " — " + fh.notes : ""}</div>
+                      </div>
+                      <button onClick={() => removeFh(i)} style={{ background: "none", border: "none", fontSize: 22, color: "#6366F1", cursor: "pointer", padding: "0 4px" }}>×</button>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <input type="text" value={newFh} onChange={e => setNewFh(e.target.value)} placeholder="Condición" style={{ ...inputStyle, flex: 2 }} />
+                    <input type="text" value={newFhRel} onChange={e => setNewFhRel(e.target.value)} placeholder="Parentesco" style={{ ...inputStyle, flex: 1 }} />
+                    <button onClick={addFh} disabled={!newFh || !newFhRel} style={{ padding: "0 16px", borderRadius: 12, border: "none", background: newFh && newFhRel ? "#6366F1" : COLORS.divider, color: newFh && newFhRel ? "#fff" : COLORS.textSec, fontSize: 22, fontWeight: 800, cursor: newFh && newFhRel ? "pointer" : "default" }}>+</button>
+                  </div>
+                </div>
+
+                <BigButton onClick={handleSave} disabled={saving} icon="💾" color="#1E3A5F">
+                  {saving ? "Guardando..." : "Guardar cambios"}
+                </BigButton>
+              </>
+            )}
+
+            {/* ─── Screenings tab ──────────────────────── */}
+            {tab === "screenings" && (
+              <div>
+                {pendingScreenings.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: 20, color: COLORS.textSec }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>✓</div>
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>Todos los tamizajes están al día</div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {pendingScreenings.map(s => (
+                      <div key={s._id} style={{
+                        padding: "14px 16px", borderRadius: 14, background: "#fff",
+                        border: "2px solid " + (STATUS[s.status]?.color || COLORS.border),
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: COLORS.text }}>{s.name}</div>
+                            <div style={{ fontSize: 13, color: COLORS.textSec }}>
+                              {s.status === "red" ? "⏰ Vencido" : "📅 Próximo"}{s.lastDone ? " · Último: " + formatDate(s.lastDone) : " · Nunca realizado"}
+                            </div>
+                          </div>
+                          <StatusBadge status={s.status} />
+                        </div>
+
+                        {resultForm === s._id ? (
+                          <div style={{ marginTop: 10, padding: "12px 14px", borderRadius: 12, background: COLORS.primaryLight }}>
+                            <div style={{ marginBottom: 8 }}>
+                              <label style={{ fontSize: 12, fontWeight: 700, color: COLORS.textSec }}>FECHA</label>
+                              <input type="date" value={resultDate} onChange={e => setResultDate(e.target.value)} style={{ ...inputStyle, marginTop: 4 }} />
+                            </div>
+                            <div style={{ marginBottom: 10 }}>
+                              <label style={{ fontSize: 12, fontWeight: 700, color: COLORS.textSec }}>RESULTADO</label>
+                              <textarea value={resultText} onChange={e => setResultText(e.target.value)}
+                                placeholder="Ej: Normal, sin hallazgos" rows={2}
+                                style={{ ...inputStyle, marginTop: 4, resize: "none" }} />
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button onClick={() => handleCompleteScreening(s._id)} disabled={saving} style={{
+                                flex: 1, padding: 12, borderRadius: 10, border: "none",
+                                background: COLORS.green, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer",
+                              }}>✓ Guardar</button>
+                              <button onClick={() => { setResultForm(null); setResultText(""); }} style={{
+                                padding: "12px 16px", borderRadius: 10, border: "2px solid " + COLORS.border,
+                                background: "#fff", fontSize: 15, fontWeight: 600, color: COLORS.textSec, cursor: "pointer",
+                              }}>×</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setResultForm(s._id); setResultText(""); setResultDate(new Date().toISOString().split("T")[0]); }}
+                            style={{
+                              marginTop: 8, padding: "10px 14px", borderRadius: 10, border: "none",
+                              background: COLORS.green, color: "#fff", fontSize: 15, fontWeight: 700,
+                              cursor: "pointer", width: "100%",
+                            }}>📝 Registrar resultado</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button onClick={() => onClose(false)} style={{ width: "100%", padding: 14, marginTop: 12, borderRadius: 14, border: "2px solid " + COLORS.border, background: "#fff", fontSize: 16, fontWeight: 600, color: COLORS.textSec, cursor: "pointer" }}>
+              Cerrar
             </button>
           </>
         )}
@@ -452,7 +557,7 @@ export default function TamizajesPage() {
         </div>
       )}
 
-      {doctorMode && patient && <DoctorModeOverlay patient={patient} onClose={handleDoctorClose} />}
+      {doctorMode && patient && <DoctorModeOverlay patient={patient} screenings={screenings} onClose={handleDoctorClose} />}
     </div>
   );
 }

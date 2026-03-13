@@ -180,14 +180,14 @@ export default function Layout({ children, activeTab, onNavigate }) {
       </div>
 
       {/* ─── Bottom Nav ───────────────────────────────────── */}
-      <div className="nav-safe" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#fff", borderTop: "1px solid " + COLORS.border, display: "flex", padding: "6px 4px 0", boxShadow: "0 -2px 12px rgba(0,0,0,0.06)", zIndex: 50 }}>
+      <div className="nav-safe" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#fff", borderTop: "1px solid " + COLORS.border, display: "flex", padding: "4px 2px 0", boxShadow: "0 -2px 12px rgba(0,0,0,0.06)", zIndex: 50 }}>
         {navItems.map(item => {
           const isActive = activeTab === item.key;
           return (
-            <button key={item.key} onClick={() => onNavigate(item.key)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "8px 0 6px", border: "none", background: "none", cursor: "pointer", position: "relative" }}>
-              {isActive && <div style={{ position: "absolute", top: -1, left: "25%", right: "25%", height: 3, borderRadius: "0 0 2px 2px", background: COLORS.primary }} />}
-              <span style={{ fontSize: 22, transform: isActive ? "scale(1.12)" : "scale(1)", filter: isActive ? "none" : "grayscale(0.4) opacity(0.7)", transition: "all 0.2s" }}>{item.icon}</span>
-              <span style={{ fontSize: 10, fontWeight: isActive ? 800 : 500, color: isActive ? COLORS.primary : COLORS.textSec }}>{item.label}</span>
+            <button key={item.key} onClick={() => onNavigate(item.key)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 1, padding: "10px 0 8px", border: "none", background: "none", cursor: "pointer", position: "relative", minHeight: 54 }}>
+              {isActive && <div style={{ position: "absolute", top: -1, left: "20%", right: "20%", height: 3, borderRadius: "0 0 2px 2px", background: COLORS.primary }} />}
+              <span style={{ fontSize: 24, transform: isActive ? "scale(1.12)" : "scale(1)", filter: isActive ? "none" : "grayscale(0.4) opacity(0.7)", transition: "all 0.2s" }}>{item.icon}</span>
+              <span style={{ fontSize: 11, fontWeight: isActive ? 800 : 500, color: isActive ? COLORS.primary : COLORS.textSec }}>{item.label}</span>
             </button>
           );
         })}
