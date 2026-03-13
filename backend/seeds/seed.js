@@ -64,7 +64,6 @@ const seed = async () => {
     {
       cedula: "7-200-2002", name: "Roberto Alexis Sánchez", phone: "6702-2002",
       dateOfBirth: new Date("1962-11-23"), sex: "M", height: 172, weight: 92, waist: 106,
-      riskFactors: { smoking: "former", cigarettesPerDay: 10, yearsSmoked: 20 },
       diagnoses: [
         { name: "Hipertensión arterial", code: "I10", dateOfDiagnosis: new Date("2015-06-01"), isActive: true },
         { name: "Diabetes mellitus tipo 2", code: "E11.9", dateOfDiagnosis: new Date("2018-02-10"), isActive: true },
@@ -113,7 +112,6 @@ const seed = async () => {
     {
       cedula: "7-400-4004", name: "José Manuel González", phone: "6704-4004",
       dateOfBirth: new Date("1955-02-28"), sex: "M", height: 168, weight: 82, waist: 98,
-      riskFactors: { smoking: "current", cigarettesPerDay: 15, yearsSmoked: 30 },
       diagnoses: [
         { name: "Hipertensión arterial", code: "I10", dateOfDiagnosis: new Date("2010-05-20"), isActive: true },
         { name: "Síndrome metabólico", code: "E88.81", dateOfDiagnosis: new Date("2019-11-01"), isActive: true },
@@ -169,7 +167,6 @@ const seed = async () => {
       height: pd.height, weight: pd.weight, waistCircumference: pd.waist,
       diagnoses: pd.diagnoses,
       familyHistory: pd.familyHistory || [],
-      riskFactors: pd.riskFactors || { smoking: "never" },
       enrollmentDate: new Date(), consentSigned: true,
       studyId: `MAC-${pd.cedula.split("-").pop()}`,
     });
@@ -206,30 +203,37 @@ const seed = async () => {
       });
     }
 
-    // Auto-generate screenings using the rules engine
-    const { generateScreeningsForPatient } = require("../rules/screeningRules");
-    const recommended = generateScreeningsForPatient(patient);
+    // Auto-generate screenings
+    const Screening_model = require("../models/Screening");
+    // We'll trigger the generation logic inline
+    const age = patient.age;
+    const sex = patient.sex;
+    const hasHTN = pd.diagnoses.some(d => d.name.includes("Hipertens"));
+    const hasDM = pd.diagnoses.some(d => d.name.includes("Diabetes"));
 
-    for (const rec of recommended) {
-      // Randomly assign some as completed, some as overdue for demo purposes
+    const screeningRules = [];
+    if (sex === "F" && age >= 40 && age <= 74) screeningRules.push({ name: "Mamografía", category: "oncologic", intervalMonths: 24 });
+    if (sex === "F" && age >= 30) screeningRules.push({ name: "Prueba VPH / Papanicolau", category: "oncologic", intervalMonths: 60 });
+    if (sex === "M" && age >= 50) screeningRules.push({ name: "PSA + Tacto Rectal", category: "oncologic", intervalMonths: 12 });
+    if (hasHTN || hasDM) {
+      screeningRules.push({ name: "Perfil Lipídico", category: "cardiovascular", intervalMonths: 12 });
+      screeningRules.push({ name: "Creatinina + EKG", category: "cardiovascular", intervalMonths: 12 });
+    }
+    if (hasDM) {
+      screeningRules.push({ name: "HbA1c", category: "metabolic", intervalMonths: 6 });
+      screeningRules.push({ name: "Microalbuminuria", category: "metabolic", intervalMonths: 12 });
+    }
+    screeningRules.push({ name: "Examen Físico Preventivo", category: "general", intervalMonths: 12 });
+
+    for (const rule of screeningRules) {
+      // Randomly assign some as completed, some as overdue
+      const rand = Math.random();
       let lastDone = null;
-      if (rec.intervalMonths > 0) {
-        const rand = Math.random();
-        if (rand > 0.3) {
-          lastDone = new Date();
-          lastDone.setMonth(lastDone.getMonth() - Math.floor(Math.random() * rec.intervalMonths * 2));
-        }
+      if (rand > 0.3) {
+        lastDone = new Date();
+        lastDone.setMonth(lastDone.getMonth() - Math.floor(Math.random() * rule.intervalMonths * 2));
       }
-      await Screening.create({
-        patient: patient._id,
-        name: rec.name,
-        category: rec.category,
-        intervalMonths: rec.intervalMonths,
-        reason: rec.reason,
-        source: rec.source,
-        priority: rec.priority,
-        lastDone,
-      });
+      await Screening_model.create({ ...rule, patient: patient._id, lastDone });
     }
 
     console.log(`  ✅ ${pd.name} (${pd.cedula}) — ${pd.meds.length} meds, ${pd.bp.length} BP, ${pd.glucose.length} gluc`);
