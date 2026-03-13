@@ -36,6 +36,9 @@ export default function MonitorPage() {
   const [weightVal, setWeightVal] = useState("");
   const [weightSaved, setWeightSaved] = useState(false);
 
+  // Emergency alert
+  const [emergency, setEmergency] = useState(null);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -64,6 +67,21 @@ export default function MonitorPage() {
       const res = await api.recordBP(s, d);
       setBpResult(res.data.status);
       await loadData();
+      // Emergency check: crisis hipertensiva
+      if (s >= 180 || d >= 120) {
+        setEmergency({
+          type: "bp",
+          value: s + "/" + d + " mmHg",
+          title: "⚠️ CRISIS HIPERTENSIVA",
+          message: "Su presión arterial es peligrosamente alta. Busque atención médica de EMERGENCIA inmediatamente.",
+          actions: [
+            "Llame al 911 o acuda al cuarto de urgencias más cercano AHORA",
+            "No conduzca — pida que alguien lo lleve",
+            "Si tiene dolor de pecho, dificultad para respirar, o cambios en la visión, esto es una emergencia cardiovascular",
+            "Si tiene medicamento antihipertensivo de rescate indicado por su médico, tómelo según las instrucciones",
+          ],
+        });
+      }
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
@@ -76,6 +94,36 @@ export default function MonitorPage() {
       const res = await api.recordGlucose(v, glucType);
       setGlucResult(res.data.status);
       await loadData();
+      // Emergency check: hipoglucemia severa o hiperglucemia severa
+      if (v < 54) {
+        setEmergency({
+          type: "glucose_low",
+          value: v + " mg/dL",
+          title: "⚠️ HIPOGLUCEMIA SEVERA",
+          message: "Su glucosa es peligrosamente BAJA. Actúe AHORA.",
+          actions: [
+            "Consuma INMEDIATAMENTE 15-20 gramos de azúcar de acción rápida: jugo de frutas, caramelos, tabletas de glucosa, o 2-3 cucharadas de azúcar en agua",
+            "Espere 15 minutos y vuelva a medir su glucosa",
+            "Si no mejora, repita la dosis de azúcar y llame al 911",
+            "NO se duerma — si pierde la conciencia, alguien debe llamar al 911 de inmediato",
+            "Si tiene glucagón inyectable prescrito, pida a alguien que se lo administre",
+          ],
+        });
+      } else if (v > 400) {
+        setEmergency({
+          type: "glucose_high",
+          value: v + " mg/dL",
+          title: "⚠️ HIPERGLUCEMIA SEVERA",
+          message: "Su glucosa es peligrosamente ALTA. Busque atención médica de EMERGENCIA.",
+          actions: [
+            "Llame al 911 o acuda al cuarto de urgencias más cercano AHORA",
+            "Tome abundante agua para mantenerse hidratado",
+            "Si tiene náuseas, vómitos, dolor abdominal, o respiración rápida, puede estar en cetoacidosis — es una emergencia",
+            "Si tiene insulina de corrección prescrita por su médico, adminístrela según las instrucciones",
+            "NO haga ejercicio con glucosa mayor a 250 mg/dL",
+          ],
+        });
+      }
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
@@ -358,6 +406,102 @@ export default function MonitorPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ═══ Emergency Alert Modal ═══════════════════════════ */}
+      {emergency && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 200,
+          background: "rgba(0,0,0,0.75)", display: "flex",
+          alignItems: "center", justifyContent: "center", padding: 16,
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 24, padding: "24px 20px 28px",
+            width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto",
+            border: "4px solid " + COLORS.red,
+            boxShadow: "0 0 40px rgba(220,38,38,0.4)",
+            animation: "emergencyPulse 1.5s ease-in-out infinite",
+          }}>
+            {/* Pulsing red header */}
+            <div style={{
+              background: COLORS.red, borderRadius: 16, padding: "20px 16px",
+              textAlign: "center", marginBottom: 16, color: "#fff",
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 4 }}>🚨</div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>{emergency.title}</div>
+              <div style={{ fontSize: 28, fontWeight: 800, marginTop: 8, letterSpacing: 1 }}>
+                {emergency.value}
+              </div>
+            </div>
+
+            <div style={{
+              fontSize: 15, fontWeight: 700, color: COLORS.red,
+              lineHeight: 1.5, marginBottom: 16, textAlign: "center",
+            }}>
+              {emergency.message}
+            </div>
+
+            {/* Action steps */}
+            <div style={{ marginBottom: 20 }}>
+              {emergency.actions.map((action, i) => (
+                <div key={i} style={{
+                  display: "flex", gap: 10, marginBottom: 10,
+                  padding: "10px 12px", borderRadius: 12,
+                  background: i === 0 ? COLORS.redBg : COLORS.divider,
+                  border: i === 0 ? "2px solid " + COLORS.red : "none",
+                }}>
+                  <span style={{
+                    fontSize: 14, fontWeight: 800,
+                    color: i === 0 ? COLORS.red : COLORS.primary,
+                    minWidth: 22, textAlign: "center",
+                  }}>{i + 1}</span>
+                  <span style={{
+                    fontSize: 14, color: COLORS.text, lineHeight: 1.5,
+                    fontWeight: i === 0 ? 700 : 500,
+                  }}>{action}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Emergency call button */}
+            <a href="tel:911" style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              width: "100%", padding: "16px 20px", marginBottom: 10,
+              background: COLORS.red, color: "#fff", border: "none",
+              borderRadius: 14, fontSize: 18, fontWeight: 800,
+              textDecoration: "none", cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(220,38,38,0.4)",
+            }}>
+              📞 Llamar al 911
+            </a>
+
+            <button onClick={() => setEmergency(null)} style={{
+              width: "100%", padding: 14, borderRadius: 12,
+              border: "2px solid " + COLORS.border, background: "#fff",
+              fontSize: 14, fontWeight: 600, cursor: "pointer",
+              color: COLORS.textSec,
+            }}>
+              He leído las instrucciones — cerrar alerta
+            </button>
+
+            <div style={{
+              marginTop: 12, padding: "10px 12px", borderRadius: 10,
+              background: "#FEF3C7", fontSize: 12, color: "#92400E",
+              textAlign: "center", lineHeight: 1.5,
+            }}>
+              Esta aplicación NO sustituye la atención médica profesional.
+              Ante cualquier duda, contacte a su médico tratante o acuda
+              al centro de salud más cercano.
+            </div>
+          </div>
+
+          <style>{`
+            @keyframes emergencyPulse {
+              0%, 100% { box-shadow: 0 0 20px rgba(220,38,38,0.3); }
+              50% { box-shadow: 0 0 40px rgba(220,38,38,0.6); }
+            }
+          `}</style>
         </div>
       )}
     </div>
