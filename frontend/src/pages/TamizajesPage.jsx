@@ -215,136 +215,166 @@ function buildVaccineSchedule(patient) {
 }
 
 function VaccineSection({ patient }) {
-  const [records, setRecords] = useState({}); // { vaccineKey: dateString }
+  const [records, setRecords] = useState([]);
+  const [recordMap, setRecordMap] = useState({});
   const [openGroup, setOpenGroup] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.getVaccinations();
-        const map = {};
-        (res.data || []).forEach(r => { map[r.vaccineKey] = r.dateAdministered?.split("T")[0] || r.dateAdministered; });
-        setRecords(map);
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
-    })();
-  }, []);
+  const loadRecords = async () => {
+    try {
+      const res = await api.getVaccinations();
+      const list = res.data || [];
+      setRecords(list);
+      const map = {};
+      list.forEach(r => { map[r.vaccineKey] = r; });
+      setRecordMap(map);
+      scheduleVaccineNotifs(list);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { loadRecords(); }, []);
+
+  function scheduleVaccineNotifs(recs) {
+    if (!("Notification" in window) || Notification.permission !== "granted") {
+      if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+      return;
+    }
+    if (window._vt) window._vt.forEach(t => clearTimeout(t));
+    window._vt = [];
+    const now = Date.now(), DAY = 86400000;
+    recs.forEach(r => {
+      if (!r.nextDoseDate) return;
+      const next = new Date(r.nextDoseDate).getTime();
+      const label = r.nextDoseLabel || r.vaccineName;
+      [30, 7, 1, 0].forEach(db => {
+        const tgt = new Date(next - db * DAY); tgt.setHours(9, 0, 0, 0);
+        const delay = tgt.getTime() - now;
+        if (delay > 0 && delay < 90 * DAY) {
+          const msg = { 30: "en 1 mes", 7: "en 1 semana", 1: "mañana", 0: "HOY" }[db];
+          window._vt.push(setTimeout(() => {
+            new Notification("💉 PrevenApp — Vacunación", { body: label + " — Le toca " + msg, icon: "/icon-192.png", tag: "vacc-" + r.vaccineKey + "-" + db });
+          }, delay));
+        }
+      });
+    });
+  }
 
   const toggleVaccine = async (key, name, dose, dateStr) => {
-    if (records[key]) {
-      // Remove
+    if (recordMap[key]) {
       setSaving(key);
-      try { await api.removeVaccination(key); setRecords(r => { const n = { ...r }; delete n[key]; return n; }); }
-      catch (e) { alert(e.message); }
-      finally { setSaving(null); }
+      try { await api.removeVaccination(key); loadRecords(); }
+      catch (e) { alert(e.message); } finally { setSaving(null); }
     } else {
-      // Add with date
-      const date = dateStr || new Date().toISOString().split("T")[0];
       setSaving(key);
-      try {
-        await api.recordVaccination({ vaccineKey: key, vaccineName: name, doseLabel: dose, dateAdministered: date });
-        setRecords(r => ({ ...r, [key]: date }));
-      } catch (e) { alert(e.message); }
-      finally { setSaving(null); }
+      try { await api.recordVaccination({ vaccineKey: key, vaccineName: name, doseLabel: dose, dateAdministered: dateStr || new Date().toISOString().split("T")[0] }); loadRecords(); }
+      catch (e) { alert(e.message); } finally { setSaving(null); }
     }
   };
 
   const updateDate = async (key, name, dose, date) => {
     setSaving(key);
-    try {
-      await api.recordVaccination({ vaccineKey: key, vaccineName: name, doseLabel: dose, dateAdministered: date });
-      setRecords(r => ({ ...r, [key]: date }));
-    } catch (e) { alert(e.message); }
-    finally { setSaving(null); }
+    try { await api.recordVaccination({ vaccineKey: key, vaccineName: name, doseLabel: dose, dateAdministered: date }); loadRecords(); }
+    catch (e) { alert(e.message); } finally { setSaving(null); }
   };
 
   const groups = buildVaccineSchedule(patient);
-  const totalVaccines = groups.reduce((s, g) => s + g.vaccines.length, 0);
-  const administered = Object.keys(records).length;
+  const totalV = groups.reduce((s, g) => s + g.vaccines.length, 0);
+  const administered = Object.keys(recordMap).length;
+  const now = new Date();
+  const upcoming = records.filter(r => r.nextDoseDate && new Date(r.nextDoseDate) > now).sort((a, b) => new Date(a.nextDoseDate) - new Date(b.nextDoseDate));
+
+  function daysUntil(ds) {
+    const d = Math.ceil((new Date(ds) - now) / 86400000);
+    if (d <= 0) return "¡Hoy!"; if (d === 1) return "Mañana"; if (d <= 7) return "En " + d + " días";
+    if (d <= 30) return "En " + Math.ceil(d / 7) + " sem"; if (d <= 365) return "En " + Math.round(d / 30) + " mes" + (Math.round(d / 30) > 1 ? "es" : "");
+    return "En " + Math.round(d / 365) + " año" + (Math.round(d / 365) > 1 ? "s" : "");
+  }
+  function urgC(ds) {
+    const d = Math.ceil((new Date(ds) - now) / 86400000);
+    if (d <= 7) return { c: "#DC2626", bg: "#FEF2F2" }; if (d <= 30) return { c: "#D97706", bg: "#FFFBEB" }; return { c: "#64748B", bg: "#F1F5F9" };
+  }
 
   return (
     <div>
-      {/* Summary */}
       <div style={{ padding: "14px 16px", marginBottom: 12, borderRadius: 14, background: "linear-gradient(135deg, #F0FDFA, #fff)", border: "1px solid #E2E8F0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#1E293B" }}>Tarjeta de Vacunación</div>
-            <div style={{ fontSize: 13, color: "#64748B" }}>PAI MINSA Panamá 2025</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#0A8A8F" }}>{administered}/{totalVaccines}</div>
-            <div style={{ fontSize: 11, color: "#64748B" }}>registradas</div>
-          </div>
+          <div><div style={{ fontSize: 15, fontWeight: 700, color: "#1E293B" }}>Tarjeta de Vacunación</div><div style={{ fontSize: 13, color: "#64748B" }}>PAI MINSA Panamá 2025</div></div>
+          <div style={{ textAlign: "right" }}><div style={{ fontSize: 22, fontWeight: 800, color: "#0A8A8F" }}>{administered}/{totalV}</div><div style={{ fontSize: 11, color: "#64748B" }}>registradas</div></div>
         </div>
         <div style={{ height: 6, borderRadius: 3, background: "#E2E8F0", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: (totalVaccines > 0 ? (administered / totalVaccines) * 100 : 0) + "%", background: "linear-gradient(90deg, #0A8A8F, #0FB5A2)", borderRadius: 3, transition: "width 0.5s" }} />
+          <div style={{ height: "100%", width: (totalV > 0 ? (administered / totalV) * 100 : 0) + "%", background: "linear-gradient(90deg, #0A8A8F, #0FB5A2)", borderRadius: 3, transition: "width 0.5s" }} />
         </div>
       </div>
 
-      {loading ? <div style={{ textAlign: "center", padding: 20, color: "#94A3B8" }}>Cargando...</div> : (
-        groups.map((g, gi) => {
-          const groupDone = g.vaccines.filter(v => records[v.key]).length;
-          return (
-            <div key={gi} style={{ marginBottom: 10, borderRadius: 14, overflow: "hidden", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-              <button onClick={() => setOpenGroup(openGroup === gi ? -1 : gi)} style={{
-                display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "12px 14px",
-                background: g.bg, border: "none", cursor: "pointer", textAlign: "left",
-              }}>
-                <span style={{ fontSize: 20 }}>{g.icon}</span>
+      {upcoming.length > 0 && (
+        <div style={{ marginBottom: 12, borderRadius: 14, overflow: "hidden", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+          <div style={{ padding: "10px 14px", background: "#FFFBEB", fontSize: 14, fontWeight: 700, color: "#D97706" }}>📅 Próximas vacunas</div>
+          {upcoming.slice(0, 4).map((r, i) => {
+            const uc = urgC(r.nextDoseDate);
+            return (
+              <div key={r.vaccineKey + i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderBottom: i < Math.min(upcoming.length, 4) - 1 ? "1px solid #F1F5F9" : "none" }}>
+                <div style={{ width: 8, height: 8, borderRadius: 4, background: uc.c, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>{g.title}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>{r.nextDoseLabel || r.vaccineName}</div>
+                  <div style={{ fontSize: 12, color: "#64748B" }}>{new Date(r.nextDoseDate).toLocaleDateString("es-PA", { day: "numeric", month: "long", year: "numeric" })}</div>
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: groupDone === g.vaccines.length ? "#DCFCE7" : "#fff", color: groupDone === g.vaccines.length ? "#16A34A" : g.accent }}>
-                  {groupDone}/{g.vaccines.length}
-                </span>
-                <span style={{ color: "#94A3B8", transform: openGroup === gi ? "rotate(180deg)" : "none", transition: "0.2s" }}>▾</span>
-              </button>
-              <div style={{ maxHeight: openGroup === gi ? 2000 : 0, overflow: "hidden", transition: "max-height 0.35s ease" }}>
-                {g.vaccines.map((v, vi) => {
-                  const done = !!records[v.key];
-                  const dateVal = records[v.key] || "";
-                  return (
-                    <div key={v.key} style={{ padding: "10px 14px", borderBottom: vi < g.vaccines.length - 1 ? "1px solid #F1F5F9" : "none", background: done ? "#F0FDF4" + "60" : "transparent" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        {/* Checkbox */}
-                        <button onClick={() => { if (!done) { toggleVaccine(v.key, v.name, v.dose, new Date().toISOString().split("T")[0]); } else { toggleVaccine(v.key); } }}
-                          disabled={saving === v.key}
-                          style={{
-                            width: 28, height: 28, borderRadius: 8, border: done ? "none" : "2px solid #CBD5E1",
-                            background: done ? "#16A34A" : "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-                            cursor: "pointer", flexShrink: 0, transition: "all 0.15s",
-                          }}>
-                          {done && <span style={{ color: "#fff", fontSize: 16, fontWeight: 800 }}>✓</span>}
-                        </button>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#1E293B", textDecoration: done ? "none" : "none" }}>{v.name}</div>
-                          <div style={{ fontSize: 12, color: "#64748B" }}>{v.dose} · {v.info}</div>
-                        </div>
-                      </div>
-                      {/* Date picker — always visible when checked */}
-                      {done && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, marginLeft: 38 }}>
-                          <span style={{ fontSize: 12, color: "#16A34A", fontWeight: 600 }}>📅</span>
-                          <input type="date" value={dateVal}
-                            onChange={e => updateDate(v.key, v.name, v.dose, e.target.value)}
-                            style={{ padding: "4px 8px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, color: "#1E293B", outline: "none", fontFamily: "inherit" }} />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: uc.bg, color: uc.c }}>{daysUntil(r.nextDoseDate)}</span>
               </div>
-            </div>
-          );
-        })
+            );
+          })}
+        </div>
       )}
 
-      <div style={{ textAlign: "center", padding: "12px 16px", fontSize: 12, color: "#94A3B8", lineHeight: 1.6 }}>
-        Fuente: PAI MINSA Panamá · Ley 48 del 5/12/2007<br />
-        Vacunas gratuitas en centros de salud MINSA y CSS
-      </div>
+      {loading ? <div style={{ textAlign: "center", padding: 20, color: "#94A3B8" }}>Cargando...</div> : groups.map((g, gi) => {
+        const gDone = g.vaccines.filter(v => recordMap[v.key]).length;
+        return (
+          <div key={gi} style={{ marginBottom: 10, borderRadius: 14, overflow: "hidden", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <button onClick={() => setOpenGroup(openGroup === gi ? -1 : gi)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "12px 14px", background: g.bg, border: "none", cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontSize: 20 }}>{g.icon}</span>
+              <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: "#1E293B" }}>{g.title}</div>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: gDone === g.vaccines.length && g.vaccines.length > 0 ? "#DCFCE7" : "#fff", color: gDone === g.vaccines.length && g.vaccines.length > 0 ? "#16A34A" : g.accent }}>{gDone}/{g.vaccines.length}</span>
+              <span style={{ color: "#94A3B8", transform: openGroup === gi ? "rotate(180deg)" : "none", transition: "0.2s" }}>▾</span>
+            </button>
+            <div style={{ maxHeight: openGroup === gi ? 3000 : 0, overflow: "hidden", transition: "max-height 0.35s ease" }}>
+              {g.vaccines.map((v, vi) => {
+                const rec = recordMap[v.key]; const done = !!rec;
+                const dateVal = rec ? (rec.dateAdministered?.split("T")[0] || "") : "";
+                return (
+                  <div key={v.key} style={{ padding: "10px 14px", borderBottom: vi < g.vaccines.length - 1 ? "1px solid #F1F5F9" : "none", background: done ? "#F0FDF460" : "transparent" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <button onClick={() => toggleVaccine(v.key, v.name, v.dose, new Date().toISOString().split("T")[0])} disabled={saving === v.key}
+                        style={{ width: 28, height: 28, borderRadius: 8, border: done ? "none" : "2px solid #CBD5E1", background: done ? "#16A34A" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                        {done && <span style={{ color: "#fff", fontSize: 16, fontWeight: 800 }}>✓</span>}
+                      </button>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>{v.name}</div>
+                        <div style={{ fontSize: 12, color: "#64748B" }}>{v.dose} · {v.info}</div>
+                      </div>
+                    </div>
+                    {done && (
+                      <div style={{ marginLeft: 38, marginTop: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, color: "#16A34A", fontWeight: 600 }}>📅 Aplicada:</span>
+                          <input type="date" value={dateVal} onChange={e => updateDate(v.key, v.name, v.dose, e.target.value)}
+                            style={{ padding: "3px 8px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, color: "#1E293B", outline: "none", fontFamily: "inherit" }} />
+                        </div>
+                        {rec.nextDoseDate && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 8, background: urgC(rec.nextDoseDate).bg }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: urgC(rec.nextDoseDate).c }}>🔔 Próxima: {new Date(rec.nextDoseDate).toLocaleDateString("es-PA", { day: "numeric", month: "short", year: "numeric" })}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 10, background: urgC(rec.nextDoseDate).c + "15", color: urgC(rec.nextDoseDate).c }}>{daysUntil(rec.nextDoseDate)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ textAlign: "center", padding: "12px 16px", fontSize: 12, color: "#94A3B8", lineHeight: 1.6 }}>🔔 Recordatorios: 1 mes, 1 semana, 1 día antes y el mismo día<br />Fuente: PAI MINSA Panamá · Ley 48 del 5/12/2007</div>
     </div>
   );
 }

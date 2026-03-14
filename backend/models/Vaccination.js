@@ -2,10 +2,13 @@ const mongoose = require("mongoose");
 
 const VaccinationSchema = new mongoose.Schema({
   patient: { type: mongoose.Schema.Types.ObjectId, ref: "Patient", required: true, index: true },
-  vaccineKey: { type: String, required: true }, // unique key like "td_dose1", "influenza_2026"
+  vaccineKey: { type: String, required: true },
   vaccineName: { type: String, required: true },
-  doseLabel: String, // "1.ª dosis", "Refuerzo anual 2026"
+  doseLabel: String,
   dateAdministered: { type: Date, required: true },
+  nextDoseDate: Date,
+  nextDoseKey: String,
+  nextDoseLabel: String,
   administeredBy: String,
   location: String,
   notes: String,
