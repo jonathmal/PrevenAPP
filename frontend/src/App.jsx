@@ -8,7 +8,6 @@ import MonitorPage from "./pages/MonitorPage";
 import MedsPage from "./pages/MedsPage";
 import TCCPage from "./pages/TCCPage";
 import ProfilePage from "./pages/ProfilePage";
-import VacunacionPage from "./pages/VacunacionPage";
 import DashboardPage from "./pages/DashboardPage";
 
 function AppContent() {
@@ -24,7 +23,6 @@ function AppContent() {
         tamizajes: <TamizajesPage />,
         monitor: <MonitorPage />,
         meds: <MedsPage />,
-        vacunas: <VacunacionPage />,
         tcc: <TCCPage />,
         perfil: <ProfilePage />,
       };

@@ -3,24 +3,24 @@ import { useAuth } from "../context/AuthContext";
 import { COLORS } from "./UI";
 
 const NAV_ITEMS_PATIENT = [
-  { key: "tamizajes", label: "Tamizajes", icon: "🛡️" },
-  { key: "monitor", label: "Monitor", icon: "❤️" },
+  { key: "tamizajes", label: "Salud", icon: "🛡️" },
+  { key: "monitor", label: "Signos", icon: "❤️" },
   { key: "meds", label: "Meds", icon: "💊" },
-  { key: "vacunas", label: "Vacunas", icon: "💉" },
   { key: "tcc", label: "TCC", icon: "🧠" },
   { key: "perfil", label: "Perfil", icon: "👤" },
 ];
-const NAV_ITEMS_DOCTOR = [
-  { key: "dashboard", label: "Pacientes", icon: "👥" },
-];
-const TITLES = { tamizajes: "Mis Tamizajes", monitor: "Automonitoreo", meds: "Mi Medicación", tcc: "Mi Mente — TCC", vacunas: "Vacunación", perfil: "Mi Perfil", dashboard: "Dashboard Clínico" };
-const SUBTITLES = { tamizajes: "Exámenes preventivos según tu perfil", monitor: "Presión, glucosa y peso corporal", meds: "Control de adherencia diaria", tcc: "Intervención conductual digital", vacunas: "Esquema de inmunización MINSA", perfil: "Mis datos clínicos y antecedentes", dashboard: "Panel de monitoreo de pacientes" };
+const NAV_ITEMS_DOCTOR = [{ key: "dashboard", label: "Pacientes", icon: "👥" }];
+
+const TITLES = {
+  tamizajes: "Mi Salud", monitor: "Signos Vitales", meds: "Medicación",
+  tcc: "Mi Mente", perfil: "Mi Perfil", dashboard: "Panel Clínico",
+};
 
 function bmiColor(bmi) {
-  if (bmi < 18.5) return "rgba(202,138,4,0.25)";
-  if (bmi < 25) return "rgba(22,163,74,0.25)";
-  if (bmi < 30) return "rgba(202,138,4,0.25)";
-  return "rgba(220,38,38,0.25)";
+  if (bmi < 18.5) return { c: "#D97706", bg: "rgba(217,119,6,0.15)" };
+  if (bmi < 25) return { c: "#16A34A", bg: "rgba(22,163,74,0.15)" };
+  if (bmi < 30) return { c: "#D97706", bg: "rgba(217,119,6,0.15)" };
+  return { c: "#DC2626", bg: "rgba(220,38,38,0.15)" };
 }
 
 export default function Layout({ children, activeTab, onNavigate }) {
@@ -32,137 +32,126 @@ export default function Layout({ children, activeTab, onNavigate }) {
   useEffect(() => {
     if (contentRef.current) {
       contentRef.current.style.opacity = "0";
-      contentRef.current.style.transform = "translateY(8px)";
+      contentRef.current.style.transform = "translateY(6px)";
       const t = setTimeout(() => {
         if (contentRef.current) {
           contentRef.current.style.opacity = "1";
           contentRef.current.style.transform = "translateY(0)";
         }
-      }, 120);
+      }, 100);
       return () => clearTimeout(t);
     }
   }, [activeTab]);
 
   const showCard = !isDoctor && patient && activeTab !== "tcc" && activeTab !== "perfil";
-  const bmi = patient?.weight && patient?.height ? parseFloat((patient.weight / Math.pow(patient.height / 100, 2)).toFixed(1)) : null;
+  const bmi = patient?.weight && patient?.height
+    ? parseFloat((patient.weight / Math.pow(patient.height / 100, 2)).toFixed(1)) : null;
+  const bmiS = bmi ? bmiColor(bmi) : null;
   const diagnoses = patient?.diagnoses?.filter(d => d.isActive) || [];
   const familyHx = patient?.familyHistory || [];
 
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: isDoctor ? "#F0F4F8" : COLORS.bg, fontFamily: "'Inter', -apple-system, sans-serif" }} className="safe-bottom">
+    <div style={{
+      maxWidth: 480, margin: "0 auto", minHeight: "100vh",
+      background: "#F8FAFB",
+      fontFamily: "'DM Sans', 'Inter', -apple-system, sans-serif",
+    }} className="safe-bottom">
 
       {/* ─── Header ──────────────────────────────────────── */}
       <div style={{
-        background: isDoctor ? "linear-gradient(135deg, #1E3A5F, #2B5B8A)" : "linear-gradient(135deg, " + COLORS.primaryDark + ", " + COLORS.primary + ", #0A9396)",
-        padding: "16px 20px " + (showCard ? "14px" : "20px"), color: "#fff",
-        borderRadius: "0 0 24px 24px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-        position: "relative", overflow: "hidden",
+        background: isDoctor
+          ? "linear-gradient(160deg, #1A2F4B 0%, #2B5B8A 100%)"
+          : "linear-gradient(160deg, #064E52 0%, #0A8A8F 50%, #0FB5A2 100%)",
+        padding: showCard ? "14px 20px 12px" : "14px 20px 16px",
+        color: "#fff", position: "relative", overflow: "hidden",
       }}>
-        <div style={{ position: "absolute", inset: 0, opacity: 0.04, backgroundImage: "radial-gradient(circle at 2px 2px, #fff 1px, transparent 0)", backgroundSize: "24px 24px" }} />
+        {/* Subtle mesh */}
+        <div style={{
+          position: "absolute", inset: 0, opacity: 0.06,
+          backgroundImage: "radial-gradient(circle at 20% 80%, #fff 0.5px, transparent 0.5px), radial-gradient(circle at 80% 20%, #fff 0.5px, transparent 0.5px)",
+          backgroundSize: "32px 32px, 24px 24px",
+        }} />
+
         <div style={{ position: "relative", zIndex: 1 }}>
-
-          {/* Top row */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          {/* Top row — compact */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showCard ? 10 : 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <img src="/icon-192.png" alt="PrevenApp" style={{ width: 36, height: 36, borderRadius: 10 }} />
+              <img src="/icon-192.png" alt="" style={{ width: 32, height: 32, borderRadius: 9 }} />
               <div>
-                <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.5 }}>PrevenApp</div>
-                <div style={{ fontSize: 10, opacity: 0.7 }}>v2.0 · Macaracas</div>
+                <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.5 }}>{TITLES[activeTab] || "PrevenApp"}</div>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: "6px 10px", fontSize: 12, fontWeight: 600, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {user?.name?.split(" ")[0]} 👋
-              </div>
-              <button onClick={logout} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "6px 10px", color: "rgba(255,255,255,0.8)", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Salir</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{
+                background: "rgba(255,255,255,0.15)", borderRadius: 20,
+                padding: "5px 12px", fontSize: 13, fontWeight: 600,
+                backdropFilter: "blur(8px)",
+              }}>{user?.name?.split(" ")[0]}</div>
+              <button onClick={logout} style={{
+                background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 20, padding: "5px 10px", color: "rgba(255,255,255,0.7)",
+                fontSize: 11, cursor: "pointer", fontWeight: 600,
+              }}>Salir</button>
             </div>
           </div>
 
-          {/* Title */}
-          <div style={{ fontFamily: "'Source Serif 4', Georgia, serif" }}>
-            <div style={{ fontSize: 20, fontWeight: 800 }}>{TITLES[activeTab] || "PrevenApp"}</div>
-            <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2, fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>{SUBTITLES[activeTab]}</div>
-          </div>
-
-          {/* ─── Patient card (Tamizajes) ─────────────────── */}
+          {/* Patient strip — compact */}
           {showCard && (
-            <div style={{ marginTop: 14 }}>
-
-              {/* Identity + metrics */}
-              <div style={{ padding: "14px 16px", background: "rgba(255,255,255,0.12)", backdropFilter: "blur(12px)", borderRadius: familyHx.length > 0 && activeTab === "tamizajes" ? "16px 16px 0 0" : 16, border: "1px solid rgba(255,255,255,0.18)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 12, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800 }}>
-                    {user?.name?.charAt(0) || "P"}
+            <div style={{
+              padding: "10px 14px", borderRadius: 14,
+              background: "rgba(255,255,255,0.1)",
+              backdropFilter: "blur(12px)",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}>
+              {/* Name + metrics in one row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: diagnoses.length > 0 ? 8 : 0 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                  background: "rgba(255,255,255,0.2)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 15, fontWeight: 800,
+                }}>{user?.name?.charAt(0)}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {user?.name}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Source Serif 4', Georgia, serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name || "Paciente"}</div>
-                    <div style={{ fontSize: 12, opacity: 0.8 }}>
-                      {patient.age ? patient.age + " años · " : ""}{patient.sex === "M" ? "Masculino" : "Femenino"}{patient.studyId ? " · " + patient.studyId : ""}
-                    </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 3 }}>
+                    <span style={{ fontSize: 11, opacity: 0.8 }}>{patient.age}a · {patient.sex === "M" ? "M" : "F"}</span>
+                    {bmi && <span style={{ fontSize: 11, fontWeight: 700, padding: "0 6px", borderRadius: 6, background: bmiS.bg }}>IMC {bmi}</span>}
+                    {patient.waistCircumference && <span style={{ fontSize: 11, opacity: 0.7 }}>CC {patient.waistCircumference}</span>}
                   </div>
                 </div>
-
-                {/* Metric pills */}
-                {(patient.height || patient.weight) && (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: diagnoses.length > 0 ? 10 : 0 }}>
-                    {patient.height && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 8, background: "rgba(255,255,255,0.15)" }}>📏 {patient.height} cm</span>}
-                    {patient.weight && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 8, background: "rgba(255,255,255,0.15)" }}>⚖️ {patient.weight} kg</span>}
-                    {bmi && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 8, background: bmiColor(bmi) }}>IMC {bmi}</span>}
-                    {patient.waistCircumference && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 8, background: "rgba(255,255,255,0.15)" }}>📐 CC: {patient.waistCircumference} cm</span>}
-                  </div>
-                )}
-
-                {/* APP badges */}
-                {diagnoses.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.6, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Antecedentes Personales Patológicos</div>
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                      {diagnoses.map((dx, i) => (
-                        <span key={i} style={{
-                          fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 8,
-                          background: "rgba(220,38,38,0.2)", color: "#fff",
-                          border: "1px solid rgba(255,255,255,0.15)",
-                        }}>
-                          {dx.name}{dx.code ? " (" + dx.code + ")" : ""}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* APF — collapsible, only on tamizajes */}
+              {/* APP badges — compact inline */}
+              {diagnoses.length > 0 && (
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {diagnoses.map((dx, i) => (
+                    <span key={i} style={{
+                      fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 6,
+                      background: "rgba(255,100,100,0.2)", color: "#fff",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                    }}>{dx.name}{dx.code ? " (" + dx.code + ")" : ""}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* APF toggle — only on tamizajes */}
               {familyHx.length > 0 && activeTab === "tamizajes" && (
-                <div style={{
-                  background: "rgba(255,255,255,0.08)",
-                  borderRadius: "0 0 16px 16px",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  borderTop: "1px solid rgba(255,255,255,0.06)",
-                  overflow: "hidden",
-                }}>
+                <div style={{ marginTop: 6 }}>
                   <button onClick={() => setApfOpen(!apfOpen)} style={{
-                    display: "flex", alignItems: "center", gap: 8, width: "100%",
-                    padding: "10px 16px", background: "none", border: "none",
-                    color: "#fff", cursor: "pointer", textAlign: "left",
+                    display: "flex", alignItems: "center", gap: 6, background: "none",
+                    border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer",
+                    fontSize: 11, fontWeight: 600, padding: 0,
                   }}>
-                    <span style={{ fontSize: 14 }}>👨‍👩‍👧‍👦</span>
-                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                      Antecedentes Familiares ({familyHx.length})
-                    </span>
-                    <span style={{ fontSize: 12, opacity: 0.6, transform: apfOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>▼</span>
+                    <span>APF ({familyHx.length})</span>
+                    <span style={{ transform: apfOpen ? "rotate(180deg)" : "rotate(0)", transition: "0.2s" }}>▾</span>
                   </button>
-                  <div style={{
-                    maxHeight: apfOpen ? 300 : 0, overflow: "hidden",
-                    transition: "max-height 0.3s ease",
-                  }}>
-                    <div style={{ padding: "0 16px 12px", display: "flex", gap: 5, flexWrap: "wrap" }}>
+                  <div style={{ maxHeight: apfOpen ? 200 : 0, overflow: "hidden", transition: "max-height 0.3s ease" }}>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
                       {familyHx.map((fh, i) => (
-                        <span key={i} style={{
-                          fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 8,
-                          background: "rgba(139,92,246,0.2)", color: "#fff",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                        }}>
-                          {fh.condition} — {fh.relative}{fh.notes ? " (" + fh.notes + ")" : ""}
+                        <span key={i} style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 6, background: "rgba(139,92,246,0.2)", color: "#fff" }}>
+                          {fh.condition} — {fh.relative}
                         </span>
                       ))}
                     </div>
@@ -175,19 +164,50 @@ export default function Layout({ children, activeTab, onNavigate }) {
       </div>
 
       {/* ─── Content ──────────────────────────────────────── */}
-      <div ref={contentRef} style={{ padding: 20, transition: "opacity 0.15s ease, transform 0.15s ease", minHeight: "calc(100vh - 200px)" }}>
+      <div ref={contentRef} style={{
+        padding: "16px 16px 100px",
+        transition: "opacity 0.12s ease, transform 0.12s ease",
+        minHeight: "calc(100vh - 160px)",
+      }}>
         {children}
       </div>
 
-      {/* ─── Bottom Nav ───────────────────────────────────── */}
-      <div className="nav-safe" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#fff", borderTop: "1px solid " + COLORS.border, display: "flex", padding: "4px 2px 0", boxShadow: "0 -2px 12px rgba(0,0,0,0.06)", zIndex: 50 }}>
+      {/* ─── Bottom Nav — frosted glass ───────────────────── */}
+      <div className="nav-safe" style={{
+        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        width: "100%", maxWidth: 480,
+        background: "rgba(255,255,255,0.92)", backdropFilter: "blur(20px)",
+        borderTop: "1px solid rgba(0,0,0,0.06)",
+        display: "flex", padding: "2px 0 0",
+        zIndex: 50,
+      }}>
         {navItems.map(item => {
           const isActive = activeTab === item.key;
           return (
-            <button key={item.key} onClick={() => onNavigate(item.key)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 1, padding: "10px 0 8px", border: "none", background: "none", cursor: "pointer", position: "relative", minHeight: 54 }}>
-              {isActive && <div style={{ position: "absolute", top: -1, left: "20%", right: "20%", height: 3, borderRadius: "0 0 2px 2px", background: COLORS.primary }} />}
-              <span style={{ fontSize: 24, transform: isActive ? "scale(1.12)" : "scale(1)", filter: isActive ? "none" : "grayscale(0.4) opacity(0.7)", transition: "all 0.2s" }}>{item.icon}</span>
-              <span style={{ fontSize: 11, fontWeight: isActive ? 800 : 500, color: isActive ? COLORS.primary : COLORS.textSec }}>{item.label}</span>
+            <button key={item.key} onClick={() => onNavigate(item.key)} style={{
+              flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+              gap: 1, padding: "10px 0 8px", border: "none",
+              background: "none", cursor: "pointer", position: "relative",
+              minHeight: 56, WebkitTapHighlightColor: "transparent",
+            }}>
+              {isActive && (
+                <div style={{
+                  position: "absolute", top: 0, left: "30%", right: "30%",
+                  height: 3, borderRadius: "0 0 3px 3px",
+                  background: "linear-gradient(90deg, #0A8A8F, #0FB5A2)",
+                }} />
+              )}
+              <span style={{
+                fontSize: 24, lineHeight: 1,
+                filter: isActive ? "none" : "grayscale(0.6) opacity(0.5)",
+                transition: "all 0.15s ease",
+                transform: isActive ? "scale(1.1)" : "scale(1)",
+              }}>{item.icon}</span>
+              <span style={{
+                fontSize: 11, fontWeight: isActive ? 800 : 500,
+                color: isActive ? "#0A8A8F" : "#94A3B8",
+                letterSpacing: -0.2,
+              }}>{item.label}</span>
             </button>
           );
         })}
