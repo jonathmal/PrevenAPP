@@ -1,407 +1,213 @@
 import { useState, useEffect } from "react";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
-import { Card, BigButton, StatusBadge, MiniChart, LoadingSpinner, SectionTitle, COLORS, STATUS, classifyBP, classifyGlucose, formatShortDate } from "../components/UI";
+import { LoadingSpinner, COLORS, STATUS, formatShortDate } from "../components/UI";
 
-function classifyBMI(bmi) {
-  if (bmi < 18.5) return { label: "Bajo peso", color: COLORS.yellow, bg: COLORS.yellowBg };
-  if (bmi < 25) return { label: "Normal", color: COLORS.green, bg: COLORS.greenBg };
-  if (bmi < 30) return { label: "Sobrepeso", color: COLORS.yellow, bg: COLORS.yellowBg };
-  return { label: "Obesidad", color: COLORS.red, bg: COLORS.redBg };
+const T = { text: "#1E293B", sub: "#64748B", muted: "#94A3B8", border: "#E2E8F0", div: "#F1F5F9", card: "#fff", r: 14 };
+const card = { background: T.card, borderRadius: T.r, boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02)", overflow: "hidden" };
+const input = { width: "100%", padding: "14px 16px", borderRadius: 12, border: "2px solid " + T.border, fontSize: 18, fontWeight: 700, textAlign: "center", outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+const btn = (bg) => ({ width: "100%", padding: 14, borderRadius: 12, border: "none", background: bg, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" });
+
+function Spark({ data, color, h = 40, w = 110 }) {
+  if (!data?.length || data.length < 2) return null;
+  const mn = Math.min(...data) * 0.92, mx = Math.max(...data) * 1.08, rg = mx - mn || 1;
+  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - mn) / rg) * h}`).join(" ");
+  return <svg width={w} height={h}><polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><circle cx="0" cy={h - ((data[0] - mn) / rg) * h} r="3" fill={color} /></svg>;
+}
+
+function StatusDot({ status }) {
+  const c = { red: "#DC2626", yellow: "#D97706", green: "#16A34A" }[status] || T.muted;
+  return <div style={{ width: 8, height: 8, borderRadius: 4, background: c, flexShrink: 0 }} />;
 }
 
 export default function MonitorPage() {
   const { patient } = useAuth();
   const [tab, setTab] = useState("bp");
-  const [bpHistory, setBpHistory] = useState([]);
-  const [glucHistory, setGlucHistory] = useState([]);
-  const [weightHistory, setWeightHistory] = useState([]);
+  const [bpH, setBpH] = useState([]); const [glucH, setGlucH] = useState([]); const [weightH, setWeightH] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // BP form
-  const [showBPForm, setShowBPForm] = useState(false);
-  const [bpSys, setBpSys] = useState("");
-  const [bpDia, setBpDia] = useState("");
-  const [bpResult, setBpResult] = useState(null);
-  const [saving, setSaving] = useState(false);
-
-  // Glucose form
-  const [showGlucForm, setShowGlucForm] = useState(false);
-  const [glucVal, setGlucVal] = useState("");
-  const [glucType, setGlucType] = useState("fasting");
-  const [glucResult, setGlucResult] = useState(null);
-
-  // Weight form
-  const [showWeightForm, setShowWeightForm] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [bpSys, setBpSys] = useState(""); const [bpDia, setBpDia] = useState("");
+  const [glucVal, setGlucVal] = useState(""); const [glucType, setGlucType] = useState("fasting");
   const [weightVal, setWeightVal] = useState("");
-  const [weightSaved, setWeightSaved] = useState(false);
-
-  // Emergency alert
+  const [saving, setSaving] = useState(false);
   const [emergency, setEmergency] = useState(null);
 
-  const loadData = async () => {
+  const load = async () => {
     setLoading(true);
     try {
-      const [bp, gluc, weight] = await Promise.all([
-        api.getBPHistory(30),
-        api.getGlucoseHistory(30),
-        api.getWeightHistory(),
-      ]);
-      setBpHistory(bp.data.reverse());
-      setGlucHistory(gluc.data.reverse());
-      setWeightHistory(weight.data.reverse());
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+      const [bp, gl, wt] = await Promise.all([api.getBPHistory(30), api.getGlucoseHistory(30), api.getWeightHistory()]);
+      setBpH(bp.data.reverse()); setGlucH(gl.data.reverse()); setWeightH(wt.data.reverse());
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
+  useEffect(() => { load(); }, []);
 
-  useEffect(() => { loadData(); }, []);
-
-  const handleSaveBP = async () => {
-    const s = parseInt(bpSys), d = parseInt(bpDia);
-    if (!s || !d) return;
+  const saveBP = async () => {
+    const s = parseInt(bpSys), d = parseInt(bpDia); if (!s || !d) return;
     setSaving(true);
     try {
-      const res = await api.recordBP(s, d);
-      setBpResult(res.data.status);
-      await loadData();
-      // Emergency check: crisis hipertensiva
-      if (s >= 180 || d >= 120) {
-        setEmergency({
-          type: "bp",
-          value: s + "/" + d + " mmHg",
-          title: "⚠️ CRISIS HIPERTENSIVA",
-          message: "Su presión arterial es peligrosamente alta. Busque atención médica de EMERGENCIA inmediatamente.",
-          actions: [
-            "Llame al 911 o acuda al cuarto de urgencias más cercano AHORA",
-            "No conduzca — pida que alguien lo lleve",
-            "Si tiene dolor de pecho, dificultad para respirar, o cambios en la visión, esto es una emergencia cardiovascular",
-            "Si tiene medicamento antihipertensivo de rescate indicado por su médico, tómelo según las instrucciones",
-          ],
-        });
-      }
-    } catch (err) { alert(err.message); }
-    finally { setSaving(false); }
+      await api.recordBP(s, d); await load(); setShowForm(false); setBpSys(""); setBpDia("");
+      if (s >= 180 || d >= 120) setEmergency({ title: "⚠️ CRISIS HIPERTENSIVA", value: s + "/" + d + " mmHg", msg: "Presión peligrosamente alta. Busque atención de EMERGENCIA.", actions: ["Llame al 911 o acuda a urgencias AHORA", "No conduzca", "Si tiene dolor de pecho o dificultad respiratoria, es emergencia cardiovascular"] });
+    } catch (e) { alert(e.message); } finally { setSaving(false); }
   };
 
-  const handleSaveGlucose = async () => {
-    const v = parseInt(glucVal);
-    if (!v) return;
+  const saveGluc = async () => {
+    const v = parseInt(glucVal); if (!v) return;
     setSaving(true);
     try {
-      const res = await api.recordGlucose(v, glucType);
-      setGlucResult(res.data.status);
-      await loadData();
-      // Emergency check: hipoglucemia severa o hiperglucemia severa
-      if (v < 54) {
-        setEmergency({
-          type: "glucose_low",
-          value: v + " mg/dL",
-          title: "⚠️ HIPOGLUCEMIA SEVERA",
-          message: "Su glucosa es peligrosamente BAJA. Actúe AHORA.",
-          actions: [
-            "Consuma INMEDIATAMENTE 15-20 gramos de azúcar de acción rápida: jugo de frutas, caramelos, tabletas de glucosa, o 2-3 cucharadas de azúcar en agua",
-            "Espere 15 minutos y vuelva a medir su glucosa",
-            "Si no mejora, repita la dosis de azúcar y llame al 911",
-            "NO se duerma — si pierde la conciencia, alguien debe llamar al 911 de inmediato",
-            "Si tiene glucagón inyectable prescrito, pida a alguien que se lo administre",
-          ],
-        });
-      } else if (v > 400) {
-        setEmergency({
-          type: "glucose_high",
-          value: v + " mg/dL",
-          title: "⚠️ HIPERGLUCEMIA SEVERA",
-          message: "Su glucosa es peligrosamente ALTA. Busque atención médica de EMERGENCIA.",
-          actions: [
-            "Llame al 911 o acuda al cuarto de urgencias más cercano AHORA",
-            "Tome abundante agua para mantenerse hidratado",
-            "Si tiene náuseas, vómitos, dolor abdominal, o respiración rápida, puede estar en cetoacidosis — es una emergencia",
-            "Si tiene insulina de corrección prescrita por su médico, adminístrela según las instrucciones",
-            "NO haga ejercicio con glucosa mayor a 250 mg/dL",
-          ],
-        });
-      }
-    } catch (err) { alert(err.message); }
-    finally { setSaving(false); }
+      await api.recordGlucose(v, glucType); await load(); setShowForm(false); setGlucVal("");
+      if (v < 54) setEmergency({ title: "⚠️ HIPOGLUCEMIA SEVERA", value: v + " mg/dL", msg: "Glucosa peligrosamente BAJA.", actions: ["Consuma 15-20g de azúcar de acción rápida AHORA", "Espere 15 min y remida", "Si no mejora, llame al 911"] });
+      else if (v > 400) setEmergency({ title: "⚠️ HIPERGLUCEMIA SEVERA", value: v + " mg/dL", msg: "Glucosa peligrosamente ALTA.", actions: ["Llame al 911 o acuda a urgencias", "Tome abundante agua", "Si tiene náuseas/vómitos, puede ser cetoacidosis"] });
+    } catch (e) { alert(e.message); } finally { setSaving(false); }
   };
 
-  const handleSaveWeight = async () => {
-    const v = parseFloat(weightVal);
-    if (!v || v < 20 || v > 400) return;
+  const saveWeight = async () => {
+    const v = parseFloat(weightVal); if (!v || v < 20 || v > 400) return;
     setSaving(true);
-    try {
-      await api.recordWeight(v);
-      setWeightSaved(true);
-      await loadData();
-      setTimeout(() => { setWeightSaved(false); setShowWeightForm(false); setWeightVal(""); }, 1500);
-    } catch (err) { alert(err.message); }
-    finally { setSaving(false); }
+    try { await api.recordWeight(v); await load(); setShowForm(false); setWeightVal(""); }
+    catch (e) { alert(e.message); } finally { setSaving(false); }
   };
 
   if (loading) return <LoadingSpinner text="Cargando datos..." />;
 
-  const lastBP = bpHistory.length > 0 ? bpHistory[bpHistory.length - 1] : null;
-  const lastGluc = glucHistory.length > 0 ? glucHistory[glucHistory.length - 1] : null;
-  const lastWeight = weightHistory.length > 0 ? weightHistory[weightHistory.length - 1] : null;
-
-  const bpChartData = bpHistory.map(r => ({ date: formatShortDate(r.measuredAt), sys: r.systolic, dia: r.diastolic }));
-  const glucChartData = glucHistory.map(r => ({ date: formatShortDate(r.measuredAt), val: r.value }));
-  const weightChartData = weightHistory.map(r => ({ date: formatShortDate(r.measuredAt), val: r.value }));
+  const lastBP = bpH[bpH.length - 1]; const lastGluc = glucH[glucH.length - 1];
+  const bmi = patient?.weight && patient?.height ? (patient.weight / Math.pow(patient.height / 100, 2)).toFixed(1) : null;
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-        {[
-          { key: "bp", label: "Presión", icon: "❤️" },
-          { key: "glucose", label: "Glucosa", icon: "🩸" },
-          { key: "weight", label: "Peso", icon: "⚖️" },
-        ].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            flex: 1, padding: "12px 8px", borderRadius: 12, border: "none",
-            background: tab === t.key ? COLORS.primary : COLORS.divider,
-            color: tab === t.key ? "#fff" : COLORS.textSec,
-            fontSize: 13, fontWeight: 700, cursor: "pointer",
-          }}>
-            <span style={{ fontSize: 18, display: "block", marginBottom: 2 }}>{t.icon}</span>
-            {t.label}
-          </button>
+      {/* Quick stats */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <div style={{ flex: 1, ...card, padding: "14px 16px" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginBottom: 4 }}>Última PA</div>
+          {lastBP ? (
+            <>
+              <div style={{ fontSize: 24, fontWeight: 800, color: lastBP.status === "green" ? "#16A34A" : lastBP.status === "yellow" ? "#D97706" : "#DC2626" }}>
+                {lastBP.systolic}/{lastBP.diastolic}
+              </div>
+              <div style={{ fontSize: 11, color: T.muted }}>mmHg</div>
+              <div style={{ marginTop: 8 }}><Spark data={bpH.map(b => b.systolic)} color="#DC2626" /></div>
+            </>
+          ) : <div style={{ fontSize: 14, color: T.muted, padding: "10px 0" }}>Sin registros</div>}
+        </div>
+        <div style={{ flex: 1, ...card, padding: "14px 16px" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginBottom: 4 }}>Última glucosa</div>
+          {lastGluc ? (
+            <>
+              <div style={{ fontSize: 24, fontWeight: 800, color: lastGluc.status === "green" ? "#16A34A" : "#D97706" }}>{lastGluc.value}</div>
+              <div style={{ fontSize: 11, color: T.muted }}>mg/dL · {lastGluc.type === "fasting" ? "ayunas" : "postprandial"}</div>
+              <div style={{ marginTop: 8 }}><Spark data={glucH.map(g => g.value)} color="#8B5CF6" /></div>
+            </>
+          ) : <div style={{ fontSize: 14, color: T.muted, padding: "10px 0" }}>Sin registros</div>}
+        </div>
+      </div>
+
+      {/* Tab toggle */}
+      <div style={{ display: "flex", background: T.div, borderRadius: 10, padding: 3, marginBottom: 16 }}>
+        {[{ k: "bp", l: "❤️ Presión" }, { k: "glucose", l: "🩸 Glucosa" }, { k: "weight", l: "⚖️ Peso" }].map(t => (
+          <button key={t.k} onClick={() => { setTab(t.k); setShowForm(false); }} style={{
+            flex: 1, padding: "9px 6px", borderRadius: 8, border: "none",
+            background: tab === t.k ? "#fff" : "transparent",
+            boxShadow: tab === t.k ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+            fontSize: 14, fontWeight: tab === t.k ? 700 : 500, color: tab === t.k ? T.text : T.sub, cursor: "pointer",
+          }}>{t.l}</button>
         ))}
       </div>
 
-      {/* ─── BP Tab ─────────────────────────────────────── */}
+      {/* ─── BP ──────────────────────────────────── */}
       {tab === "bp" && (
-        <div>
-          {lastBP && (
-            <Card style={{ marginBottom: 16, background: "linear-gradient(135deg, " + COLORS.primaryLight + ", #fff)" }}>
-              <div style={{ fontSize: 13, color: COLORS.textSec, fontWeight: 600, marginBottom: 4 }}>Última medición</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                <span style={{ fontSize: 36, fontWeight: 800, color: COLORS.text }}>{lastBP.systolic}/{lastBP.diastolic}</span>
-                <span style={{ fontSize: 14, color: COLORS.textSec }}>mmHg</span>
-              </div>
-              <StatusBadge status={lastBP.status} large />
-            </Card>
-          )}
-          {bpChartData.length >= 2 && (
-            <>
-              <SectionTitle>Tendencia sistólica</SectionTitle>
-              <Card style={{ marginBottom: 16 }}>
-                <MiniChart data={bpChartData} dataKey="sys" color={COLORS.primary} height={90} goal={140} />
-              </Card>
-            </>
-          )}
-          {!showBPForm ? (
-            <BigButton onClick={() => setShowBPForm(true)} icon="📏">Registrar nueva medición</BigButton>
-          ) : (
-            <Card style={{ border: "2px solid " + COLORS.primary }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: COLORS.text, marginBottom: 16 }}>Nueva medición</div>
-              <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+        <div style={card}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid " + T.div, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div><div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Presión arterial</div><div style={{ fontSize: 13, color: T.sub }}>{bpH.length} registros</div></div>
+            <button onClick={() => setShowForm(!showForm)} style={{ padding: "6px 14px", borderRadius: 20, border: "none", background: "#0A8A8F", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ Registrar</button>
+          </div>
+          {showForm && (
+            <div style={{ padding: 16, background: "#F0FDFA", borderBottom: "1px solid " + T.div }}>
+              <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textSec, display: "block", marginBottom: 6 }}>Sistólica</label>
-                  <input type="number" value={bpSys} onChange={e => setBpSys(e.target.value)} placeholder="130"
-                    style={{ width: "100%", padding: 14, borderRadius: 12, border: "2px solid " + COLORS.border, fontSize: 22, fontWeight: 700, textAlign: "center", outline: "none", boxSizing: "border-box" }} />
+                  <label style={{ fontSize: 12, fontWeight: 700, color: T.sub, display: "block", marginBottom: 4 }}>SISTÓLICA</label>
+                  <input type="number" value={bpSys} onChange={e => setBpSys(e.target.value)} placeholder="140" style={input} />
                 </div>
-                <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 14, fontSize: 24, fontWeight: 700, color: COLORS.textSec }}>/</div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textSec, display: "block", marginBottom: 6 }}>Diastólica</label>
-                  <input type="number" value={bpDia} onChange={e => setBpDia(e.target.value)} placeholder="85"
-                    style={{ width: "100%", padding: 14, borderRadius: 12, border: "2px solid " + COLORS.border, fontSize: 22, fontWeight: 700, textAlign: "center", outline: "none", boxSizing: "border-box" }} />
+                  <label style={{ fontSize: 12, fontWeight: 700, color: T.sub, display: "block", marginBottom: 4 }}>DIASTÓLICA</label>
+                  <input type="number" value={bpDia} onChange={e => setBpDia(e.target.value)} placeholder="90" style={input} />
                 </div>
               </div>
-              {bpResult && (
-                <div style={{ padding: 14, borderRadius: 12, marginBottom: 16, background: STATUS[bpResult].bg, textAlign: "center" }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: STATUS[bpResult].color }}>
-                    {STATUS[bpResult].icon} {bpSys}/{bpDia} mmHg — {STATUS[bpResult].label}
-                  </div>
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => { setShowBPForm(false); setBpResult(null); setBpSys(""); setBpDia(""); }}
-                  style={{ flex: 1, padding: 14, borderRadius: 12, border: "2px solid " + COLORS.border, background: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", color: COLORS.textSec }}>
-                  Cancelar
-                </button>
-                <BigButton onClick={handleSaveBP} disabled={saving} style={{ flex: 2 }} icon="✓">
-                  {saving ? "Guardando..." : "Guardar"}
-                </BigButton>
-              </div>
-            </Card>
+              <button onClick={saveBP} disabled={saving || !bpSys || !bpDia} style={btn(bpSys && bpDia ? "#0A8A8F" : T.border)}>{saving ? "Guardando..." : "Guardar"}</button>
+            </div>
           )}
+          {bpH.slice().reverse().slice(0, 10).map((r, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid " + T.div }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <StatusDot status={r.status} />
+                <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{r.systolic}/{r.diastolic}</span>
+                <span style={{ fontSize: 13, color: T.muted }}>mmHg</span>
+              </div>
+              <span style={{ fontSize: 13, color: T.muted }}>{formatShortDate(r.measuredAt)}</span>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* ─── Glucose Tab ────────────────────────────────── */}
+      {/* ─── Glucose ─────────────────────────────── */}
       {tab === "glucose" && (
-        <div>
-          {lastGluc && (
-            <Card style={{ marginBottom: 16, background: "linear-gradient(135deg, #FEF3C7, #fff)" }}>
-              <div style={{ fontSize: 13, color: COLORS.textSec, fontWeight: 600, marginBottom: 4 }}>Última glucosa</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                <span style={{ fontSize: 36, fontWeight: 800, color: COLORS.text }}>{lastGluc.value}</span>
-                <span style={{ fontSize: 14, color: COLORS.textSec }}>mg/dL ({lastGluc.type === "fasting" ? "ayunas" : "postprandial"})</span>
-              </div>
-              <StatusBadge status={lastGluc.status} large />
-            </Card>
-          )}
-          {glucChartData.length >= 2 && (
-            <>
-              <SectionTitle>Tendencia glucosa</SectionTitle>
-              <Card style={{ marginBottom: 16 }}>
-                <MiniChart data={glucChartData} dataKey="val" color={COLORS.accent} height={90} goal={130} />
-              </Card>
-            </>
-          )}
-          {!showGlucForm ? (
-            <BigButton onClick={() => setShowGlucForm(true)} icon="🩸" color={COLORS.accent}>Registrar glucosa</BigButton>
-          ) : (
-            <Card style={{ border: "2px solid " + COLORS.accent }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: COLORS.text, marginBottom: 16 }}>Nueva glucosa</div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                {["fasting", "postprandial"].map(t => (
-                  <button key={t} onClick={() => setGlucType(t)} style={{
-                    flex: 1, padding: 10, borderRadius: 10,
-                    border: glucType === t ? "2px solid " + COLORS.accent : "2px solid " + COLORS.border,
-                    background: glucType === t ? "#FFF7ED" : "#fff",
-                    fontSize: 13, fontWeight: 600, cursor: "pointer",
-                    color: glucType === t ? COLORS.accent : COLORS.textSec,
-                  }}>
-                    {t === "fasting" ? "Ayunas" : "Postprandial"}
-                  </button>
+        <div style={card}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid " + T.div, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div><div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Glucosa</div><div style={{ fontSize: 13, color: T.sub }}>{glucH.length} registros</div></div>
+            <button onClick={() => setShowForm(!showForm)} style={{ padding: "6px 14px", borderRadius: 20, border: "none", background: "#8B5CF6", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ Registrar</button>
+          </div>
+          {showForm && (
+            <div style={{ padding: 16, background: "#F5F3FF", borderBottom: "1px solid " + T.div }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: T.sub, display: "block", marginBottom: 4 }}>VALOR (mg/dL)</label>
+              <input type="number" value={glucVal} onChange={e => setGlucVal(e.target.value)} placeholder="120" style={{ ...input, marginBottom: 10 }} />
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                {[["fasting", "Ayunas"], ["postprandial", "Postprandial"]].map(([v, l]) => (
+                  <button key={v} onClick={() => setGlucType(v)} style={{ flex: 1, padding: 10, borderRadius: 10, border: "none", background: glucType === v ? "#8B5CF6" : T.div, color: glucType === v ? "#fff" : T.sub, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{l}</button>
                 ))}
               </div>
-              <div style={{ marginBottom: 16 }}>
-                <input type="number" value={glucVal} onChange={e => setGlucVal(e.target.value)} placeholder="Ej: 120"
-                  style={{ width: "100%", padding: 14, borderRadius: 12, border: "2px solid " + COLORS.border, fontSize: 22, fontWeight: 700, textAlign: "center", outline: "none", boxSizing: "border-box" }} />
-              </div>
-              {glucResult && (
-                <div style={{ padding: 14, borderRadius: 12, marginBottom: 16, background: STATUS[glucResult].bg, textAlign: "center" }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: STATUS[glucResult].color }}>
-                    {glucVal} mg/dL — {STATUS[glucResult].label}
-                  </div>
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => { setShowGlucForm(false); setGlucResult(null); setGlucVal(""); }}
-                  style={{ flex: 1, padding: 14, borderRadius: 12, border: "2px solid " + COLORS.border, background: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", color: COLORS.textSec }}>
-                  Cancelar
-                </button>
-                <BigButton onClick={handleSaveGlucose} disabled={saving} style={{ flex: 2 }} icon="✓" color={COLORS.accent}>
-                  {saving ? "Guardando..." : "Guardar"}
-                </BigButton>
-              </div>
-            </Card>
+              <button onClick={saveGluc} disabled={saving || !glucVal} style={btn(glucVal ? "#8B5CF6" : T.border)}>{saving ? "Guardando..." : "Guardar"}</button>
+            </div>
           )}
+          {glucH.slice().reverse().slice(0, 10).map((r, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid " + T.div }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <StatusDot status={r.status} />
+                <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{r.value}</span>
+                <span style={{ fontSize: 13, color: T.muted }}>mg/dL</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: r.type === "fasting" ? "#0A8A8F15" : "#8B5CF615", color: r.type === "fasting" ? "#0A8A8F" : "#8B5CF6" }}>{r.type === "fasting" ? "Ayunas" : "PP"}</span>
+              </div>
+              <span style={{ fontSize: 13, color: T.muted }}>{formatShortDate(r.measuredAt)}</span>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* ─── Weight Tab ─────────────────────────────────── */}
+      {/* ─── Weight ──────────────────────────────── */}
       {tab === "weight" && (
         <div>
-          {lastWeight && (
-            <Card style={{ marginBottom: 16, background: "linear-gradient(135deg, #EDE9FE, #fff)" }}>
-              <div style={{ fontSize: 13, color: COLORS.textSec, fontWeight: 600, marginBottom: 4 }}>Último registro</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                <span style={{ fontSize: 36, fontWeight: 800, color: COLORS.text }}>{lastWeight.value}</span>
-                <span style={{ fontSize: 14, color: COLORS.textSec }}>kg</span>
-              </div>
-              {lastWeight.bmi && (() => {
-                const bmiInfo = classifyBMI(lastWeight.bmi);
-                return (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                    <span style={{
-                      padding: "4px 12px", borderRadius: 20, fontSize: 14, fontWeight: 700,
-                      background: bmiInfo.bg, color: bmiInfo.color,
-                    }}>
-                      IMC: {lastWeight.bmi}
-                    </span>
-                    <span style={{ fontSize: 13, color: bmiInfo.color, fontWeight: 600 }}>{bmiInfo.label}</span>
-                  </div>
-                );
-              })()}
-              {!lastWeight.bmi && patient?.height && (
-                <div style={{ fontSize: 12, color: COLORS.textSec, marginTop: 6 }}>
-                  IMC: {(lastWeight.value / Math.pow(patient.height / 100, 2)).toFixed(1)}
-                </div>
-              )}
-              <div style={{ fontSize: 12, color: COLORS.textSec, marginTop: 6 }}>
-                {new Date(lastWeight.measuredAt).toLocaleDateString("es-PA", { day: "numeric", month: "long", year: "numeric" })}
-              </div>
-              {weightHistory.length >= 2 && (() => {
-                const prev = weightHistory[weightHistory.length - 2];
-                const diff = (lastWeight.value - prev.value).toFixed(1);
-                const sign = diff > 0 ? "+" : "";
-                return (
-                  <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: diff > 0 ? COLORS.yellow : diff < 0 ? COLORS.green : COLORS.textSec }}>
-                    {sign}{diff} kg desde el registro anterior
-                  </div>
-                );
-              })()}
-            </Card>
-          )}
-
-          {weightChartData.length >= 2 && (
-            <>
-              <SectionTitle>Tendencia de peso</SectionTitle>
-              <Card style={{ marginBottom: 16 }}>
-                <MiniChart data={weightChartData} dataKey="val" color="#7C3AED" height={90} />
-              </Card>
-            </>
-          )}
-
-          {!showWeightForm ? (
-            <BigButton onClick={() => setShowWeightForm(true)} icon="⚖️" color="#7C3AED">Registrar peso</BigButton>
+          <div style={{ ...card, padding: "20px", textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 48, fontWeight: 800, color: T.text }}>
+              {weightH.length > 0 ? weightH[weightH.length - 1].value : patient?.weight || "—"}
+              <span style={{ fontSize: 18, color: T.muted, fontWeight: 500 }}> kg</span>
+            </div>
+            {bmi && <div style={{ fontSize: 14, color: T.sub, marginTop: 4 }}>IMC {bmi} · {bmi < 25 ? "Normal" : bmi < 30 ? "Sobrepeso" : "Obesidad"}</div>}
+            {weightH.length >= 2 && <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}><Spark data={weightH.map(w => w.value)} color="#0A8A8F" w={200} h={50} /></div>}
+          </div>
+          {!showForm ? (
+            <button onClick={() => setShowForm(true)} style={btn("linear-gradient(135deg, #064E52, #0FB5A2)")}>+ Registrar peso</button>
           ) : (
-            <Card style={{ border: "2px solid #7C3AED" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: COLORS.text, marginBottom: 16 }}>Nuevo registro de peso</div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: COLORS.textSec, display: "block", marginBottom: 6 }}>Peso en kilogramos</label>
-                <input type="number" value={weightVal} onChange={e => setWeightVal(e.target.value)}
-                  placeholder={lastWeight ? String(lastWeight.value) : "70"}
-                  step="0.1" min="20" max="400"
-                  style={{ width: "100%", padding: 14, borderRadius: 12, border: "2px solid " + COLORS.border, fontSize: 28, fontWeight: 700, textAlign: "center", outline: "none", boxSizing: "border-box" }} />
-                <div style={{ textAlign: "center", fontSize: 12, color: COLORS.textSec, marginTop: 6 }}>
-                  Use su báscula en la mañana, antes de desayunar, con ropa ligera
-                </div>
-              </div>
-              {weightSaved && (
-                <div style={{ padding: 14, borderRadius: 12, marginBottom: 16, background: COLORS.greenBg, textAlign: "center" }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.green }}>✓ {weightVal} kg guardado</div>
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => { setShowWeightForm(false); setWeightVal(""); setWeightSaved(false); }}
-                  style={{ flex: 1, padding: 14, borderRadius: 12, border: "2px solid " + COLORS.border, background: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", color: COLORS.textSec }}>
-                  Cancelar
-                </button>
-                <BigButton onClick={handleSaveWeight} disabled={saving} style={{ flex: 2 }} icon="✓" color="#7C3AED">
-                  {saving ? "Guardando..." : "Guardar"}
-                </BigButton>
-              </div>
-            </Card>
+            <div style={{ ...card, padding: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: T.sub, display: "block", marginBottom: 4 }}>PESO (kg)</label>
+              <input type="number" step="0.1" value={weightVal} onChange={e => setWeightVal(e.target.value)} placeholder="77" style={{ ...input, marginBottom: 12 }} />
+              <button onClick={saveWeight} disabled={saving || !weightVal} style={btn(weightVal ? "#0A8A8F" : T.border)}>{saving ? "Guardando..." : "Guardar"}</button>
+            </div>
           )}
-
-          {/* Weight history list */}
-          {weightHistory.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <SectionTitle>Historial de peso</SectionTitle>
-              {weightHistory.slice().reverse().slice(0, 10).map((w, i) => (
-                <div key={w._id || i} style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "12px 0", borderBottom: "1px solid " + COLORS.divider,
-                }}>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>{w.value} kg</div>
-                    <div style={{ fontSize: 12, color: COLORS.textSec }}>
-                      {new Date(w.measuredAt).toLocaleDateString("es-PA", { day: "numeric", month: "short", year: "numeric" })}
-                    </div>
-                  </div>
-                  {w.bmi && (
-                    <span style={{
-                      padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700,
-                      background: classifyBMI(w.bmi).bg, color: classifyBMI(w.bmi).color,
-                    }}>IMC {w.bmi}</span>
-                  )}
+          {weightH.length > 0 && (
+            <div style={{ ...card, marginTop: 16 }}>
+              <div style={{ padding: "14px 16px", borderBottom: "1px solid " + T.div, fontSize: 15, fontWeight: 700, color: T.text }}>Historial</div>
+              {weightH.slice().reverse().slice(0, 8).map((r, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid " + T.div }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{r.value} kg</span>
+                  <span style={{ fontSize: 13, color: T.muted }}>{formatShortDate(r.measuredAt)}</span>
                 </div>
               ))}
             </div>
@@ -409,99 +215,25 @@ export default function MonitorPage() {
         </div>
       )}
 
-      {/* ═══ Emergency Alert Modal ═══════════════════════════ */}
+      {/* Emergency modal */}
       {emergency && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 200,
-          background: "rgba(0,0,0,0.75)", display: "flex",
-          alignItems: "center", justifyContent: "center", padding: 16,
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: 24, padding: "24px 20px 28px",
-            width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto",
-            border: "4px solid " + COLORS.red,
-            boxShadow: "0 0 40px rgba(220,38,38,0.4)",
-            animation: "emergencyPulse 1.5s ease-in-out infinite",
-          }}>
-            {/* Pulsing red header */}
-            <div style={{
-              background: COLORS.red, borderRadius: 16, padding: "20px 16px",
-              textAlign: "center", marginBottom: 16, color: "#fff",
-            }}>
-              <div style={{ fontSize: 36, marginBottom: 4 }}>🚨</div>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>{emergency.title}</div>
-              <div style={{ fontSize: 28, fontWeight: 800, marginTop: 8, letterSpacing: 1 }}>
-                {emergency.value}
+        <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 380, maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              <div style={{ width: 60, height: 60, borderRadius: 30, margin: "0 auto 10px", background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, animation: "pulse 1s infinite" }}>🚨</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#DC2626" }}>{emergency.title}</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: T.text, marginTop: 4 }}>{emergency.value}</div>
+            </div>
+            <div style={{ fontSize: 15, color: T.sub, lineHeight: 1.6, marginBottom: 16 }}>{emergency.msg}</div>
+            {emergency.actions.map((a, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: i < emergency.actions.length - 1 ? "1px solid " + T.div : "none" }}>
+                <span style={{ color: "#DC2626", fontWeight: 800 }}>{i + 1}.</span>
+                <span style={{ fontSize: 14, color: T.text, lineHeight: 1.5 }}>{a}</span>
               </div>
-            </div>
-
-            <div style={{
-              fontSize: 15, fontWeight: 700, color: COLORS.red,
-              lineHeight: 1.5, marginBottom: 16, textAlign: "center",
-            }}>
-              {emergency.message}
-            </div>
-
-            {/* Action steps */}
-            <div style={{ marginBottom: 20 }}>
-              {emergency.actions.map((action, i) => (
-                <div key={i} style={{
-                  display: "flex", gap: 10, marginBottom: 10,
-                  padding: "10px 12px", borderRadius: 12,
-                  background: i === 0 ? COLORS.redBg : COLORS.divider,
-                  border: i === 0 ? "2px solid " + COLORS.red : "none",
-                }}>
-                  <span style={{
-                    fontSize: 14, fontWeight: 800,
-                    color: i === 0 ? COLORS.red : COLORS.primary,
-                    minWidth: 22, textAlign: "center",
-                  }}>{i + 1}</span>
-                  <span style={{
-                    fontSize: 14, color: COLORS.text, lineHeight: 1.5,
-                    fontWeight: i === 0 ? 700 : 500,
-                  }}>{action}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Emergency call button */}
-            <a href="tel:911" style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              width: "100%", padding: "16px 20px", marginBottom: 10,
-              background: COLORS.red, color: "#fff", border: "none",
-              borderRadius: 14, fontSize: 18, fontWeight: 800,
-              textDecoration: "none", cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(220,38,38,0.4)",
-            }}>
-              📞 Llamar al 911
-            </a>
-
-            <button onClick={() => setEmergency(null)} style={{
-              width: "100%", padding: 14, borderRadius: 12,
-              border: "2px solid " + COLORS.border, background: "#fff",
-              fontSize: 14, fontWeight: 600, cursor: "pointer",
-              color: COLORS.textSec,
-            }}>
-              He leído las instrucciones — cerrar alerta
-            </button>
-
-            <div style={{
-              marginTop: 12, padding: "10px 12px", borderRadius: 10,
-              background: "#FEF3C7", fontSize: 12, color: "#92400E",
-              textAlign: "center", lineHeight: 1.5,
-            }}>
-              Esta aplicación NO sustituye la atención médica profesional.
-              Ante cualquier duda, contacte a su médico tratante o acuda
-              al centro de salud más cercano.
-            </div>
+            ))}
+            <a href="tel:911" style={{ display: "block", width: "100%", padding: 16, marginTop: 16, borderRadius: 14, background: "#DC2626", color: "#fff", fontSize: 18, fontWeight: 800, textAlign: "center", textDecoration: "none" }}>📞 Llamar al 911</a>
+            <button onClick={() => setEmergency(null)} style={{ width: "100%", padding: 14, marginTop: 8, borderRadius: 14, border: "1px solid " + T.border, background: "#fff", fontSize: 15, fontWeight: 600, color: T.sub, cursor: "pointer" }}>Cerrar alerta</button>
           </div>
-
-          <style>{`
-            @keyframes emergencyPulse {
-              0%, 100% { box-shadow: 0 0 20px rgba(220,38,38,0.3); }
-              50% { box-shadow: 0 0 40px rgba(220,38,38,0.6); }
-            }
-          `}</style>
         </div>
       )}
     </div>

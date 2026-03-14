@@ -1,264 +1,147 @@
 import { useState, useEffect } from "react";
 import api from "../services/api";
-import { Card, BigButton, LoadingSpinner, SectionTitle, EmptyState, COLORS } from "../components/UI";
+import { LoadingSpinner, COLORS } from "../components/UI";
 
-// ─── Notification helper ────────────────────────────────────
-function scheduleNotifications(medications) {
+const T = { text: "#1E293B", sub: "#64748B", muted: "#94A3B8", border: "#E2E8F0", div: "#F1F5F9", card: "#fff", r: 14 };
+const card = { background: T.card, borderRadius: T.r, boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02)", overflow: "hidden" };
+const iS = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid " + T.border, fontSize: 16, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+
+function scheduleNotifications(meds) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  // Cancel existing
-  if (window._medTimers) window._medTimers.forEach(t => clearTimeout(t));
-  window._medTimers = [];
-
+  if (window._mt) window._mt.forEach(t => clearTimeout(t)); window._mt = [];
   const now = new Date();
-  medications.forEach(med => {
-    (med.schedules || []).forEach(time => {
-      const [h, m] = time.split(":").map(Number);
-      const target = new Date(now);
-      target.setHours(h, m, 0, 0);
-      if (target <= now) return; // already passed today
-      const delay = target - now;
-      if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
-        const timer = setTimeout(() => {
-          new Notification("💊 PrevenApp — Hora de su medicamento", {
-            body: med.name + " " + (med.dose || "") + " — " + time,
-            icon: "/icon-192.png",
-            tag: "med-" + med._id + "-" + time,
-          });
-        }, delay);
-        window._medTimers.push(timer);
-      }
-    });
-  });
-}
-
-function requestNotificationPermission() {
-  if ("Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission();
-  }
-}
-
-// ─── Time picker component ──────────────────────────────────
-function TimePicker({ schedules, onChange }) {
-  const [adding, setAdding] = useState(false);
-  const [newTime, setNewTime] = useState("08:00");
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-        {schedules.map((t, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 10, background: COLORS.primaryLight, fontSize: 15, fontWeight: 700, color: COLORS.primary }}>
-            🕐 {t}
-            <button onClick={() => onChange(schedules.filter((_, j) => j !== i))} style={{ background: "none", border: "none", fontSize: 16, color: COLORS.red, cursor: "pointer", padding: "0 2px" }}>×</button>
-          </div>
-        ))}
-        {schedules.length === 0 && !adding && (
-          <div style={{ fontSize: 14, color: COLORS.textSec }}>Sin horarios configurados</div>
-        )}
-      </div>
-      {!adding ? (
-        <button onClick={() => setAdding(true)} style={{ padding: "8px 14px", borderRadius: 10, border: "2px dashed " + COLORS.border, background: "none", fontSize: 14, fontWeight: 600, color: COLORS.primary, cursor: "pointer" }}>+ Agregar horario</button>
-      ) : (
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)} style={{ padding: "8px 12px", borderRadius: 10, border: "2px solid " + COLORS.border, fontSize: 16, fontWeight: 700, outline: "none", fontFamily: "inherit" }} />
-          <button onClick={() => { onChange([...schedules, newTime].sort()); setAdding(false); setNewTime("08:00"); }} style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: COLORS.primary, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>✓</button>
-          <button onClick={() => setAdding(false)} style={{ padding: "8px 14px", borderRadius: 10, border: "2px solid " + COLORS.border, background: "#fff", fontSize: 14, fontWeight: 600, color: COLORS.textSec, cursor: "pointer" }}>×</button>
-        </div>
-      )}
-    </div>
-  );
+  meds.forEach(m => (m.schedules || []).forEach(time => {
+    const [h, mi] = time.split(":").map(Number); const tgt = new Date(now); tgt.setHours(h, mi, 0, 0);
+    const delay = tgt - now;
+    if (delay > 0 && delay < 86400000) window._mt.push(setTimeout(() => { new Notification("💊 PrevenApp", { body: m.name + " " + (m.dose || "") + " — " + time, icon: "/icon-192.png" }); }, delay));
+  }));
 }
 
 export default function MedsPage() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newMed, setNewMed] = useState({ name: "", dose: "", frequency: "QD", schedules: ["08:00"], indication: "" });
-  const [saving, setSaving] = useState(false);
+  const [data, setData] = useState(null); const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false); const [saving, setSaving] = useState(false);
+  const [nM, setNM] = useState({ name: "", dose: "", frequency: "QD", schedules: ["08:00"], indication: "" });
+  const [newTime, setNewTime] = useState("08:00"); const [addingTime, setAddingTime] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await api.getMedLogToday();
-      setData(res.data);
-      // Schedule notifications for active meds
-      if (res.data?.medications) {
-        scheduleNotifications(res.data.medications.map(m => m.medication));
-      }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+      const r = await api.getMedLogToday(); setData(r.data);
+      if (r.data?.medications) scheduleNotifications(r.data.medications.map(m => m.medication));
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   };
+  useEffect(() => { load(); if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); }, []);
 
-  useEffect(() => { load(); requestNotificationPermission(); }, []);
-
-  const toggleMed = async (medId, scheduledTime, currentlyTaken) => {
-    try { await api.logMedDose(medId, scheduledTime, !currentlyTaken); load(); }
-    catch (err) { alert(err.message); }
+  const toggle = async (medId, time, cur) => { try { await api.logMedDose(medId, time, !cur); load(); } catch (e) { alert(e.message); } };
+  const addMed = async () => {
+    if (!nM.name) return; setSaving(true);
+    try { await api.addMedication(nM); setShowAdd(false); setNM({ name: "", dose: "", frequency: "QD", schedules: ["08:00"], indication: "" }); load(); }
+    catch (e) { alert(e.message); } finally { setSaving(false); }
   };
-
-  const handleAddMed = async () => {
-    if (!newMed.name) return;
-    setSaving(true);
-    try {
-      await api.addMedication(newMed);
-      setShowAddForm(false);
-      setNewMed({ name: "", dose: "", frequency: "QD", schedules: ["08:00"], indication: "" });
-      load();
-    } catch (err) { alert(err.message); }
-    finally { setSaving(false); }
-  };
-
-  const handleDeleteMed = async (medId) => {
-    if (!confirm("¿Eliminar este medicamento?")) return;
-    try { await api.deleteMedication(medId); load(); }
-    catch (err) { alert(err.message); }
-  };
+  const delMed = async (id) => { if (!confirm("¿Eliminar?")) return; try { await api.deleteMedication(id); load(); } catch (e) { alert(e.message); } };
 
   if (loading) return <LoadingSpinner text="Cargando medicamentos..." />;
-  if (!data || !data.medications || data.medications.length === 0) {
-    return (
-      <div>
-        <EmptyState icon="💊" message="No hay medicamentos registrados" />
-        <div style={{ padding: "0 20px" }}>
-          <BigButton onClick={() => setShowAddForm(true)} icon="+" color={COLORS.primary}>Agregar medicamento</BigButton>
-        </div>
-        {showAddForm && <AddMedForm newMed={newMed} setNewMed={setNewMed} onSave={handleAddMed} onCancel={() => setShowAddForm(false)} saving={saving} />}
-      </div>
-    );
-  }
 
-  const { medications, adherenceToday, taken, total } = data;
-  const pct = adherenceToday;
-  const allDone = pct === 100;
+  const meds = data?.medications || []; const taken = meds.filter(m => m.taken).length;
+  const pct = meds.length > 0 ? Math.round((taken / meds.length) * 100) : 100;
 
   return (
     <div>
-      {/* Adherence ring */}
-      <div className="fade-in" style={{ marginBottom: 20, textAlign: "center", padding: "20px 16px", borderRadius: 16, background: "linear-gradient(135deg, " + (allDone ? COLORS.greenBg : COLORS.primaryLight) + ", #fff)", border: "1px solid " + COLORS.border }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.textSec, marginBottom: 10 }}>Adherencia hoy</div>
-        <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto 10px" }}>
-          <svg viewBox="0 0 36 36" style={{ width: 100, height: 100, transform: "rotate(-90deg)" }}>
-            <circle cx="18" cy="18" r="15.9" fill="none" stroke={COLORS.divider} strokeWidth="3" />
-            <circle cx="18" cy="18" r="15.9" fill="none" stroke={allDone ? COLORS.green : COLORS.primary} strokeWidth="3" strokeDasharray={pct + " " + (100 - pct)} strokeLinecap="round" style={{ transition: "stroke-dasharray 0.6s ease" }} />
-          </svg>
-          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 26, fontWeight: 800, color: allDone ? COLORS.green : COLORS.text }}>{pct}%</span>
+      {/* Adherence */}
+      <div style={{ ...card, padding: "18px 20px", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ position: "relative", width: 60, height: 60, flexShrink: 0 }}>
+            <svg viewBox="0 0 36 36" style={{ width: 60, height: 60, transform: "rotate(-90deg)" }}>
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke={T.div} strokeWidth="2.5" />
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke={pct === 100 ? "#16A34A" : "#0A8A8F"} strokeWidth="2.5" strokeDasharray={pct + " " + (100 - pct)} strokeLinecap="round" style={{ transition: "stroke-dasharray 0.6s" }} />
+            </svg>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 17, fontWeight: 800, color: pct === 100 ? "#16A34A" : T.text }}>{pct}%</span>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: T.sub }}>Adherencia hoy</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: T.text }}>{taken}/{meds.length}</div>
+            {pct === 100 && <div style={{ fontSize: 13, color: "#16A34A", fontWeight: 600 }}>🎉 ¡Todo tomado!</div>}
           </div>
         </div>
-        <div style={{ fontSize: 15, fontWeight: 600, color: allDone ? COLORS.green : COLORS.textSec }}>
-          {allDone ? "🎉 ¡Todas las dosis tomadas!" : taken + " de " + total + " medicamentos"}
+      </div>
+
+      {/* Med list */}
+      <div style={card}>
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid " + T.div, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Medicamentos</div>
+          <button onClick={() => setShowAdd(true)} style={{ padding: "5px 14px", borderRadius: 20, border: "none", background: "#0A8A8F", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ Agregar</button>
         </div>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <SectionTitle>Medicamentos de hoy</SectionTitle>
-        <button onClick={() => setShowAddForm(true)} style={{ padding: "6px 14px", borderRadius: 10, border: "none", background: COLORS.primary, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ Agregar</button>
-      </div>
-
-      <div className="stagger" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {medications.map((item, i) => {
-          const med = item.medication;
-          const isTaken = item.taken;
+        {meds.length === 0 && <div style={{ padding: 20, textAlign: "center", color: T.muted }}>Sin medicamentos registrados</div>}
+        {meds.map((item, i) => {
+          const m = item.medication, done = item.taken;
           return (
-            <Card key={med._id || i} onClick={() => toggleMed(med._id, med.schedules?.[0] || "08:00", isTaken)}
-              style={{ padding: 16, borderLeft: "4px solid " + (isTaken ? COLORS.green : COLORS.yellow), opacity: isTaken ? 0.85 : 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, background: isTaken ? COLORS.greenBg : COLORS.yellowBg }}>
-                  {isTaken ? "✓" : "💊"}
+            <div key={m._id || i} onClick={() => toggle(m._id, m.schedules?.[0] || "08:00", done)} style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+              borderBottom: i < meds.length - 1 ? "1px solid " + T.div : "none",
+              cursor: "pointer", background: done ? "#F0FDF460" : "transparent", transition: "background 0.15s",
+            }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, background: done ? "#DCFCE7" : "#FEF3C7" }}>{done ? "✓" : "💊"}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: T.text, textDecoration: done ? "line-through" : "none", opacity: done ? 0.6 : 1 }}>
+                  {m.name} <span style={{ fontWeight: 400, color: T.sub }}>{m.dose}</span>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 16, color: COLORS.text, textDecoration: isTaken ? "line-through" : "none" }}>
-                    {med.name} {med.dose}
-                  </div>
-                  <div style={{ fontSize: 14, color: COLORS.textSec }}>
-                    🕐 {med.schedules?.join(" / ") || med.frequency}
-                    {med.indication && " · " + med.indication}
-                  </div>
-                  {med.addedBy && (
-                    <div style={{ fontSize: 11, color: COLORS.textSec, marginTop: 2 }}>
-                      {med.addedBy === "doctor" ? "🩺" : "👤"} Agregado por {med.addedByName || med.addedBy}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                  <div style={{ padding: "6px 12px", borderRadius: 10, fontSize: 13, fontWeight: 700, background: isTaken ? COLORS.greenBg : COLORS.yellowBg, color: isTaken ? COLORS.green : COLORS.yellow }}>
-                    {isTaken ? "Tomado" : "Pendiente"}
-                  </div>
-                  <button onClick={e => { e.stopPropagation(); handleDeleteMed(med._id); }} style={{ background: "none", border: "none", fontSize: 11, color: COLORS.textSec, cursor: "pointer", textDecoration: "underline" }}>
-                    Eliminar
-                  </button>
-                </div>
+                <div style={{ fontSize: 12, color: T.muted }}>🕐 {m.schedules?.join(" / ") || m.frequency}{m.indication ? " · " + m.indication : ""}</div>
+                {m.addedBy && <div style={{ fontSize: 11, color: T.muted }}>{m.addedBy === "doctor" ? "🩺" : "👤"} {m.addedByName || m.addedBy}</div>}
               </div>
-            </Card>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: done ? "#16A34A15" : "#D9770615", color: done ? "#16A34A" : "#D97706" }}>{done ? "Tomado" : "Pendiente"}</span>
+                <button onClick={e => { e.stopPropagation(); delMed(m._id); }} style={{ background: "none", border: "none", fontSize: 11, color: T.muted, cursor: "pointer", textDecoration: "underline" }}>Eliminar</button>
+              </div>
+            </div>
           );
         })}
       </div>
 
-      {allDone && (
-        <div className="slide-up" style={{ marginTop: 20, padding: 16, borderRadius: 14, background: "linear-gradient(135deg, #ECFDF5, #F0FDF4)", textAlign: "center" }}>
-          <div style={{ fontSize: 28, marginBottom: 4 }}>💪</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.green }}>¡Excelente adherencia!</div>
-          <div style={{ fontSize: 13, color: COLORS.textSec, marginTop: 4 }}>Su constancia marca la diferencia en el control de su salud.</div>
+      {/* Add form modal */}
+      {showAdd && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowAdd(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "20px 20px 0 0", padding: "16px 16px 28px", width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: T.border, margin: "0 auto 12px" }} />
+            <div style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 14 }}>💊 Agregar Medicamento</div>
+            <div style={{ marginBottom: 10 }}><label style={{ fontSize: 12, fontWeight: 700, color: T.sub }}>Nombre</label><input value={nM.name} onChange={e => setNM({ ...nM, name: e.target.value })} placeholder="Ej: Losartán" style={{ ...iS, marginTop: 4 }} /></div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}><label style={{ fontSize: 12, fontWeight: 700, color: T.sub }}>Dosis</label><input value={nM.dose} onChange={e => setNM({ ...nM, dose: e.target.value })} placeholder="50mg" style={{ ...iS, marginTop: 4 }} /></div>
+              <div style={{ flex: 1 }}><label style={{ fontSize: 12, fontWeight: 700, color: T.sub }}>Indicación</label><input value={nM.indication} onChange={e => setNM({ ...nM, indication: e.target.value })} placeholder="HTA" style={{ ...iS, marginTop: 4 }} /></div>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: T.sub, marginBottom: 6, display: "block" }}>Frecuencia</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                {[["QD", "1×/día"], ["BID", "2×/día"], ["TID", "3×/día"], ["PRN", "S/necesidad"]].map(([v, l]) => (
+                  <button key={v} onClick={() => setNM({ ...nM, frequency: v })} style={{ padding: 10, borderRadius: 10, border: "none", background: nM.frequency === v ? "#0A8A8F" : T.div, color: nM.frequency === v ? "#fff" : T.sub, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: T.sub, marginBottom: 6, display: "block" }}>Horarios</label>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+                {nM.schedules.map((t, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 10, background: "#F0FDFA", fontSize: 15, fontWeight: 700, color: "#0A8A8F" }}>
+                    🕐 {t} <button onClick={() => setNM({ ...nM, schedules: nM.schedules.filter((_, j) => j !== i) })} style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 14 }}>×</button>
+                  </div>
+                ))}
+              </div>
+              {!addingTime ? (
+                <button onClick={() => setAddingTime(true)} style={{ padding: "8px 14px", borderRadius: 10, border: "2px dashed " + T.border, background: "none", fontSize: 13, fontWeight: 600, color: "#0A8A8F", cursor: "pointer" }}>+ Horario</button>
+              ) : (
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "2px solid " + T.border, fontSize: 16, fontWeight: 700, outline: "none" }} />
+                  <button onClick={() => { setNM({ ...nM, schedules: [...nM.schedules, newTime].sort() }); setAddingTime(false); }} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#0A8A8F", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>✓</button>
+                  <button onClick={() => setAddingTime(false)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid " + T.border, background: "#fff", color: T.sub, cursor: "pointer" }}>×</button>
+                </div>
+              )}
+            </div>
+            <button onClick={addMed} disabled={saving || !nM.name} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: nM.name ? "#0A8A8F" : T.border, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>{saving ? "Guardando..." : "Agregar medicamento"}</button>
+            <button onClick={() => setShowAdd(false)} style={{ width: "100%", padding: 12, marginTop: 8, borderRadius: 12, border: "1px solid " + T.border, background: "#fff", fontSize: 15, fontWeight: 600, color: T.sub, cursor: "pointer" }}>Cancelar</button>
+          </div>
         </div>
       )}
-
-      {/* Add medication modal */}
-      {showAddForm && <AddMedForm newMed={newMed} setNewMed={setNewMed} onSave={handleAddMed} onCancel={() => setShowAddForm(false)} saving={saving} />}
-    </div>
-  );
-}
-
-function AddMedForm({ newMed, setNewMed, onSave, onCancel, saving }) {
-  const inputStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid " + COLORS.border, fontSize: 16, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
-  const freqOptions = [
-    { val: "QD", label: "1 vez/día" }, { val: "BID", label: "2 veces/día" },
-    { val: "TID", label: "3 veces/día" }, { val: "PRN", label: "Según necesidad" },
-  ];
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onCancel}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "24px 24px 0 0", padding: "20px 20px 32px", width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" }}>
-        <div style={{ width: 40, height: 4, borderRadius: 2, background: COLORS.border, margin: "0 auto 16px" }} />
-        <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.text, marginBottom: 16 }}>💊 Agregar Medicamento</div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: COLORS.textSec, marginBottom: 4 }}>Nombre del medicamento</label>
-          <input type="text" value={newMed.name} onChange={e => setNewMed({ ...newMed, name: e.target.value })} placeholder="Ej: Losartán" style={inputStyle} />
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: COLORS.textSec, marginBottom: 4 }}>Dosis</label>
-            <input type="text" value={newMed.dose} onChange={e => setNewMed({ ...newMed, dose: e.target.value })} placeholder="Ej: 50mg" style={inputStyle} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: COLORS.textSec, marginBottom: 4 }}>Indicación</label>
-            <input type="text" value={newMed.indication} onChange={e => setNewMed({ ...newMed, indication: e.target.value })} placeholder="Ej: HTA" style={inputStyle} />
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: COLORS.textSec, marginBottom: 6 }}>Frecuencia</label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            {freqOptions.map(f => (
-              <button key={f.val} onClick={() => setNewMed({ ...newMed, frequency: f.val })} style={{
-                padding: "10px 8px", borderRadius: 10, border: "none",
-                background: newMed.frequency === f.val ? COLORS.primary : COLORS.divider,
-                color: newMed.frequency === f.val ? "#fff" : COLORS.textSec,
-                fontSize: 14, fontWeight: 700, cursor: "pointer",
-              }}>{f.label}</button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: COLORS.textSec, marginBottom: 6 }}>Horarios de recordatorio</label>
-          <TimePicker schedules={newMed.schedules} onChange={s => setNewMed({ ...newMed, schedules: s })} />
-        </div>
-
-        <BigButton onClick={onSave} disabled={saving || !newMed.name} icon="💊" color={COLORS.primary}>
-          {saving ? "Guardando..." : "Agregar medicamento"}
-        </BigButton>
-        <button onClick={onCancel} style={{ width: "100%", padding: 14, marginTop: 8, borderRadius: 14, border: "2px solid " + COLORS.border, background: "#fff", fontSize: 16, fontWeight: 600, color: COLORS.textSec, cursor: "pointer" }}>Cancelar</button>
-      </div>
     </div>
   );
 }
