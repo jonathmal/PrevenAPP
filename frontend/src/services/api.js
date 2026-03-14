@@ -110,6 +110,11 @@ class ApiService {
   }
   generateScreenings() { return this.post("/screenings/generate"); }
 
+  // ─── Vaccinations ─────────────────────────────────────
+  getVaccinations() { return this.get("/vaccinations"); }
+  recordVaccination(data) { return this.post("/vaccinations", data); }
+  removeVaccination(key) { return this.del("/vaccinations/" + key); }
+
   // ─── TCC ───────────────────────────────────────────────
   getTCCProgress() { return this.get("/tcc/progress"); }
   advanceTCCWeek() { return this.put("/tcc/progress/advance"); }

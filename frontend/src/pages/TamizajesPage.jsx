@@ -144,72 +144,207 @@ function SectionToggle({ active, onChange }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// VACCINE DATA (inline — from VacunacionPage)
+// VACCINATION CARD — PAI MINSA Panamá 2025
 // ═══════════════════════════════════════════════════════════
-const VACCINE_GROUPS = [
-  { title: "Rutina — Todos los adultos", icon: "💉", accent: "#0D9488", bg: "#F0FDFA",
-    vaccines: [
-      { name: "Influenza", info: "1 dosis anual · Todos los adultos, énfasis ≥60 y ECNT" },
-      { name: "dT (Tétanos/Difteria)", info: "Refuerzo cada 10 años · Serie 3 dosis si incompleto" },
-      { name: "COVID-19", info: "Refuerzo según lineamientos · Prioridad: ≥60, inmunocomprometidos" },
-    ] },
-  { title: "Adultos mayores (≥60)", icon: "👴", accent: "#6366F1", bg: "#F5F3FF",
-    vaccines: [
-      { name: "Neumococo PCV20", info: "Dosis única · Actualizado 2025 en Panamá" },
-      { name: "VSR", info: "Dosis única · Panamá: primer país de la región (julio 2025)" },
-      { name: "Herpes Zóster (Shingrix)", info: "2 dosis · ≥50 años · Sector privado" },
-    ] },
-  { title: "Enfermedades crónicas", icon: "🏥", accent: "#DC2626", bg: "#FEF2F2",
-    vaccines: [
-      { name: "Influenza (prioritaria)", info: "Anual · HTA, DM2, cardíaca, renal, pulmonar" },
-      { name: "Neumococo PCV20", info: "Dosis única · DM, cardiopatía, nefropatía, asplenia" },
-      { name: "Hepatitis B", info: "3 dosis (0,1,6m) · Diabéticos, hemodiálisis" },
-    ] },
-  { title: "Mujeres edad reproductiva", icon: "🤰", accent: "#EC4899", bg: "#FDF2F8",
-    vaccines: [
-      { name: "VPH Nona Valente", info: "2-3 dosis · Actualizado 2025 · Previene Ca cervicouterino" },
-      { name: "Tdap (embarazadas)", info: "1 dosis sem 27-36 cada embarazo" },
-      { name: "VSR (embarazadas)", info: "1 dosis sem 32-36 · Protege al neonato" },
-    ] },
-  { title: "Según factores de riesgo", icon: "⚠️", accent: "#D97706", bg: "#FFFBEB",
-    vaccines: [
-      { name: "Hepatitis A", info: "2 dosis · Viajeros, hepatopatía, HSH" },
-      { name: "Fiebre Amarilla", info: "Dosis única de por vida · Darién, comarcas" },
-      { name: "Meningococo ACWY", info: "Asplenia, deficiencia complemento, viajeros" },
-    ] },
-];
+
+function buildVaccineSchedule(patient) {
+  const age = patient?.age || 30;
+  const sex = patient?.sex || "F";
+  const hasDx = (kw) => (patient?.diagnoses || []).some(d => d.isActive && kw.some(k => d.name.toLowerCase().includes(k)));
+  const hasChronic = hasDx(["hipertens", "diabetes", "cardio", "pulmon", "renal", "hepat", "obesidad", "asplenia", "vih"]);
+  const isHealthWorker = false; // could be a patient field in future
+  const groups = [];
+
+  // 1. Base — all adults
+  const base = { title: "Esquema base — Todo adulto", icon: "💉", accent: "#0D9488", bg: "#F0FDFA", vaccines: [] };
+  base.vaccines.push(
+    { key: "td_dose1", name: "Td (Tétanos-Difteria)", dose: "1.ª dosis", info: "Iniciar esquema", totalDoses: 3 },
+    { key: "td_dose2", name: "Td (Tétanos-Difteria)", dose: "2.ª dosis", info: "1 mes después de la 1.ª" },
+    { key: "td_dose3", name: "Td (Tétanos-Difteria)", dose: "3.ª dosis / Refuerzo", info: "12 meses después de la 2.ª, luego c/10 años" },
+    { key: "mr_dose1", name: "MR (Sarampión-Rubéola)", dose: "1 dosis", info: "Si nunca fue vacunado/a" },
+    { key: "influenza_" + new Date().getFullYear(), name: "Influenza", dose: "1 dosis anual", info: "Campaña anual para todos los adultos" },
+    { key: "covid_2025", name: "COVID-19", dose: "1 dosis", info: "Esquema 2025, aplicación anual" },
+  );
+  groups.push(base);
+
+  // 2. Women of reproductive age / pregnant
+  if (sex === "F" && age >= 15 && age <= 49) {
+    const women = { title: "Mujer en edad fértil / Embarazo", icon: "🤰", accent: "#EC4899", bg: "#FDF2F8", vaccines: [] };
+    women.vaccines.push(
+      { key: "tdap_pregnancy", name: "Tdap", dose: "1 dosis por embarazo", info: "Desde semana 27; reemplaza 1 dosis de Td" },
+      { key: "influenza_pregnancy", name: "Influenza (embarazo)", dose: "1 dosis anual", info: "En cualquier trimestre de gestación" },
+      { key: "vsr_pregnancy", name: "VSR (embarazo)", dose: "1 dosis", info: "Entre semana 32 y 36 de gestación" },
+      { key: "mr_mef", name: "MR (puérpera)", dose: "1 dosis", info: "Si nunca vacunada, preferiblemente puerperio inmediato" },
+      { key: "covid_pregnancy", name: "COVID-19 (embarazo)", dose: "1 dosis", info: "Independiente del período de gestación" },
+    );
+    groups.push(women);
+  }
+
+  // 3. Age 60+
+  if (age >= 60) {
+    const sixty = { title: "Adulto ≥60 años", icon: "👴", accent: "#1E40AF", bg: "#EFF6FF", vaccines: [] };
+    sixty.vaccines.push(
+      { key: "pcv20", name: "Neumococo PCV20", dose: "Dosis única", info: "A partir de los 60 años" },
+      { key: "ppsv23", name: "Neumococo PPSV23", dose: "Según evaluación", info: "Complementario al PCV20 según contexto local" },
+      { key: "tdap_60", name: "Tdap", dose: "1 dosis", info: "A partir de los 60; revacunar c/10 años, c/5 si herida grave" },
+      { key: "vsr_60", name: "VSR", dose: "1 dosis", info: "A partir de los 60 años" },
+    );
+    if (age < 50) { /* influenza already added above */ }
+    groups.push(sixty);
+  }
+
+  // 5. Chronic conditions
+  if (hasChronic) {
+    const chronic = { title: "Condiciones de riesgo", icon: "🏥", accent: "#DC2626", bg: "#FEF2F2", vaccines: [] };
+    chronic.vaccines.push(
+      { key: "pcv20_risk", name: "Neumococo PCV20", dose: "Dosis única", info: "Independiente de edad en pacientes con ECNT" },
+      { key: "hepb_risk_1", name: "Hepatitis B", dose: "1.ª dosis", info: "DM, hemodiálisis, hepatopatía; esquema 0, 1, 6 meses" },
+      { key: "hepb_risk_2", name: "Hepatitis B", dose: "2.ª dosis", info: "1 mes después de la 1.ª" },
+      { key: "hepb_risk_3", name: "Hepatitis B", dose: "3.ª dosis", info: "6 meses después de la 1.ª" },
+    );
+    if (hasDx(["vih"]) || hasDx(["asplenia"])) {
+      chronic.vaccines.push({ key: "hepa_risk", name: "Hepatitis A", dose: "2 dosis", info: "0 y 6-12 meses; VIH, hepatopatía, HSH" });
+    }
+    groups.push(chronic);
+  }
+
+  // 6. Health workers (future: detect from patient profile)
+  // Placeholder — can be toggled
+
+  return groups;
+}
 
 function VaccineSection({ patient }) {
+  const [records, setRecords] = useState({}); // { vaccineKey: dateString }
   const [openGroup, setOpenGroup] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.getVaccinations();
+        const map = {};
+        (res.data || []).forEach(r => { map[r.vaccineKey] = r.dateAdministered?.split("T")[0] || r.dateAdministered; });
+        setRecords(map);
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
+    })();
+  }, []);
+
+  const toggleVaccine = async (key, name, dose, dateStr) => {
+    if (records[key]) {
+      // Remove
+      setSaving(key);
+      try { await api.removeVaccination(key); setRecords(r => { const n = { ...r }; delete n[key]; return n; }); }
+      catch (e) { alert(e.message); }
+      finally { setSaving(null); }
+    } else {
+      // Add with date
+      const date = dateStr || new Date().toISOString().split("T")[0];
+      setSaving(key);
+      try {
+        await api.recordVaccination({ vaccineKey: key, vaccineName: name, doseLabel: dose, dateAdministered: date });
+        setRecords(r => ({ ...r, [key]: date }));
+      } catch (e) { alert(e.message); }
+      finally { setSaving(null); }
+    }
+  };
+
+  const updateDate = async (key, name, dose, date) => {
+    setSaving(key);
+    try {
+      await api.recordVaccination({ vaccineKey: key, vaccineName: name, doseLabel: dose, dateAdministered: date });
+      setRecords(r => ({ ...r, [key]: date }));
+    } catch (e) { alert(e.message); }
+    finally { setSaving(null); }
+  };
+
+  const groups = buildVaccineSchedule(patient);
+  const totalVaccines = groups.reduce((s, g) => s + g.vaccines.length, 0);
+  const administered = Object.keys(records).length;
+
   return (
     <div>
-      <div style={{ padding: "12px 16px", marginBottom: 12, borderRadius: 14, background: "linear-gradient(135deg, #F0FDFA, #fff)", border: "1px solid #E2E8F0" }}>
-        <div style={{ fontSize: 14, color: "#64748B", lineHeight: 1.6 }}>
-          Esquema del <strong>PAI MINSA Panamá</strong> personalizado según su perfil.
-          Las vacunas son <strong>gratuitas</strong> en centros de salud.
-        </div>
-      </div>
-      {VACCINE_GROUPS.map((g, gi) => (
-        <div key={gi} style={{ marginBottom: 8, borderRadius: 14, overflow: "hidden", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-          <button onClick={() => setOpenGroup(openGroup === gi ? -1 : gi)} style={{
-            display: "flex", alignItems: "center", gap: 10, width: "100%",
-            padding: "12px 14px", background: g.bg, border: "none", cursor: "pointer", textAlign: "left",
-          }}>
-            <span style={{ fontSize: 20 }}>{g.icon}</span>
-            <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: "#1E293B" }}>{g.title}</div>
-            <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#fff", color: g.accent }}>{g.vaccines.length}</span>
-            <span style={{ color: "#94A3B8", transform: openGroup === gi ? "rotate(180deg)" : "none", transition: "0.2s" }}>▾</span>
-          </button>
-          <div style={{ maxHeight: openGroup === gi ? 500 : 0, overflow: "hidden", transition: "max-height 0.3s ease" }}>
-            {g.vaccines.map((v, vi) => (
-              <div key={vi} style={{ padding: "10px 14px", borderBottom: vi < g.vaccines.length - 1 ? "1px solid #F1F5F9" : "none" }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>{v.name}</div>
-                <div style={{ fontSize: 13, color: "#64748B", marginTop: 2 }}>{v.info}</div>
-              </div>
-            ))}
+      {/* Summary */}
+      <div style={{ padding: "14px 16px", marginBottom: 12, borderRadius: 14, background: "linear-gradient(135deg, #F0FDFA, #fff)", border: "1px solid #E2E8F0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#1E293B" }}>Tarjeta de Vacunación</div>
+            <div style={{ fontSize: 13, color: "#64748B" }}>PAI MINSA Panamá 2025</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#0A8A8F" }}>{administered}/{totalVaccines}</div>
+            <div style={{ fontSize: 11, color: "#64748B" }}>registradas</div>
           </div>
         </div>
-      ))}
+        <div style={{ height: 6, borderRadius: 3, background: "#E2E8F0", overflow: "hidden" }}>
+          <div style={{ height: "100%", width: (totalVaccines > 0 ? (administered / totalVaccines) * 100 : 0) + "%", background: "linear-gradient(90deg, #0A8A8F, #0FB5A2)", borderRadius: 3, transition: "width 0.5s" }} />
+        </div>
+      </div>
+
+      {loading ? <div style={{ textAlign: "center", padding: 20, color: "#94A3B8" }}>Cargando...</div> : (
+        groups.map((g, gi) => {
+          const groupDone = g.vaccines.filter(v => records[v.key]).length;
+          return (
+            <div key={gi} style={{ marginBottom: 10, borderRadius: 14, overflow: "hidden", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+              <button onClick={() => setOpenGroup(openGroup === gi ? -1 : gi)} style={{
+                display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "12px 14px",
+                background: g.bg, border: "none", cursor: "pointer", textAlign: "left",
+              }}>
+                <span style={{ fontSize: 20 }}>{g.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>{g.title}</div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: groupDone === g.vaccines.length ? "#DCFCE7" : "#fff", color: groupDone === g.vaccines.length ? "#16A34A" : g.accent }}>
+                  {groupDone}/{g.vaccines.length}
+                </span>
+                <span style={{ color: "#94A3B8", transform: openGroup === gi ? "rotate(180deg)" : "none", transition: "0.2s" }}>▾</span>
+              </button>
+              <div style={{ maxHeight: openGroup === gi ? 2000 : 0, overflow: "hidden", transition: "max-height 0.35s ease" }}>
+                {g.vaccines.map((v, vi) => {
+                  const done = !!records[v.key];
+                  const dateVal = records[v.key] || "";
+                  return (
+                    <div key={v.key} style={{ padding: "10px 14px", borderBottom: vi < g.vaccines.length - 1 ? "1px solid #F1F5F9" : "none", background: done ? "#F0FDF4" + "60" : "transparent" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        {/* Checkbox */}
+                        <button onClick={() => { if (!done) { toggleVaccine(v.key, v.name, v.dose, new Date().toISOString().split("T")[0]); } else { toggleVaccine(v.key); } }}
+                          disabled={saving === v.key}
+                          style={{
+                            width: 28, height: 28, borderRadius: 8, border: done ? "none" : "2px solid #CBD5E1",
+                            background: done ? "#16A34A" : "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+                            cursor: "pointer", flexShrink: 0, transition: "all 0.15s",
+                          }}>
+                          {done && <span style={{ color: "#fff", fontSize: 16, fontWeight: 800 }}>✓</span>}
+                        </button>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: "#1E293B", textDecoration: done ? "none" : "none" }}>{v.name}</div>
+                          <div style={{ fontSize: 12, color: "#64748B" }}>{v.dose} · {v.info}</div>
+                        </div>
+                      </div>
+                      {/* Date picker — always visible when checked */}
+                      {done && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, marginLeft: 38 }}>
+                          <span style={{ fontSize: 12, color: "#16A34A", fontWeight: 600 }}>📅</span>
+                          <input type="date" value={dateVal}
+                            onChange={e => updateDate(v.key, v.name, v.dose, e.target.value)}
+                            style={{ padding: "4px 8px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, color: "#1E293B", outline: "none", fontFamily: "inherit" }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })
+      )}
+
+      <div style={{ textAlign: "center", padding: "12px 16px", fontSize: 12, color: "#94A3B8", lineHeight: 1.6 }}>
+        Fuente: PAI MINSA Panamá · Ley 48 del 5/12/2007<br />
+        Vacunas gratuitas en centros de salud MINSA y CSS
+      </div>
     </div>
   );
 }

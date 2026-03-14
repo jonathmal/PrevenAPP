@@ -1,14 +1,16 @@
 const User = require("./User");
 const Patient = require("./Patient");
-const BPReading = require("./BPReading");
-const GlucoseReading = require("./GlucoseReading");
-const WeightReading = require("./WeightReading");
+const { BPReading } = require("./BPReading");
+const { GlucoseReading } = require("./GlucoseReading");
+const { WeightReading } = require("./WeightReading");
 const { Medication, MedLog } = require("./Medication");
 const Screening = require("./Screening");
-const { ABCRecord, SMARTGoal, HungerScale, TCCProgress } = require("./TCC");
+const { TCCProgress, ABCRecord, SMARTGoal, HungerScale } = require("./TCC");
+const Vaccination = require("./Vaccination");
 
 module.exports = {
   User, Patient, BPReading, GlucoseReading, WeightReading,
   Medication, MedLog, Screening,
-  ABCRecord, SMARTGoal, HungerScale, TCCProgress,
+  TCCProgress, ABCRecord, SMARTGoal, HungerScale,
+  Vaccination,
 };

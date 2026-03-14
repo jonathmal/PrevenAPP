@@ -68,6 +68,7 @@ app.use("/api/vitals", require("./routes/vitals"));
 app.use("/api/medications", require("./routes/medications"));
 app.use("/api/screenings", require("./routes/screenings"));
 app.use("/api/tcc", require("./routes/tcc"));
+app.use("/api/vaccinations", require("./routes/vaccinations"));
 app.use("/api/dashboard", require("./routes/dashboard"));
 
 // ICD-10 search — accessible by any authenticated user (patient + doctor)
