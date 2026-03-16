@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { LoadingSpinner, OfflineBanner, InstallPrompt } from "./components/UI";
 import Layout from "./components/Layout";
 import LoginPage from "./pages/LoginPage";
+import ConsentPage from "./pages/ConsentPage";
 import TamizajesPage from "./pages/TamizajesPage";
 import MonitorPage from "./pages/MonitorPage";
 import MedsPage from "./pages/MedsPage";
@@ -11,11 +12,22 @@ import ProfilePage from "./pages/ProfilePage";
 import DashboardPage from "./pages/DashboardPage";
 
 function AppContent() {
-  const { user, loading, isDoctor } = useAuth();
-  const [activeTab, setActiveTab] = useState(isDoctor ? "dashboard" : "tamizajes");
+  const { user, patient, loading, isDoctor, reload } = useAuth();
+  const [activeTab, setActiveTab] = useState("tamizajes");
+
+  useEffect(() => {
+    if (!loading && user) {
+      setActiveTab(isDoctor ? "dashboard" : "tamizajes");
+    }
+  }, [loading, user, isDoctor]);
 
   if (loading) return <LoadingSpinner text="Cargando PrevenApp..." />;
   if (!user) return <LoginPage />;
+
+  // Show consent screen for patients who haven't accepted
+  if (!isDoctor && patient && !patient.consentSigned) {
+    return <ConsentPage onAccept={() => reload()} />;
+  }
 
   const pages = isDoctor
     ? { dashboard: <DashboardPage /> }

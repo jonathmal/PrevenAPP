@@ -9,7 +9,20 @@ function PatientList({ patients, summary, onSelectPatient }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all"); // all, alert, controlled
 
+  if (!patients || patients.length === 0) {
+    return (
+      <div style={{ textAlign: "center", padding: "40px 20px" }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#1E293B", marginBottom: 8 }}>Sin pacientes registrados</div>
+        <div style={{ fontSize: 14, color: "#64748B", lineHeight: 1.6 }}>
+          Ejecute <code style={{ background: "#F1F5F9", padding: "2px 8px", borderRadius: 6, fontSize: 13 }}>node seeds/seed.js</code> en el backend para cargar los pacientes de prueba, o registre pacientes desde la app.
+        </div>
+      </div>
+    );
+  }
+
   const filtered = patients.filter(p => {
+    if (!p?.patient?.name) return false;
     const nameMatch = p.patient.name.toLowerCase().includes(search.toLowerCase());
     if (filter === "alert") return nameMatch && p.alertCount > 0;
     if (filter === "controlled") return nameMatch && p.alertCount === 0;
@@ -21,9 +34,9 @@ function PatientList({ patients, summary, onSelectPatient }) {
       {/* Summary cards */}
       <div className="fade-in" style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         {[
-          { val: summary.totalPatients, label: "Pacientes", bg: COLORS.primaryLight, color: COLORS.primary },
-          { val: summary.patientsInAlert, label: "En alerta", bg: COLORS.redBg, color: COLORS.red },
-          { val: summary.avgAdherence + "%", label: "Adherencia", bg: COLORS.greenBg, color: COLORS.green },
+          { val: summary?.totalPatients || 0, label: "Pacientes", bg: COLORS.primaryLight, color: COLORS.primary },
+          { val: summary?.patientsInAlert || 0, label: "En alerta", bg: COLORS.redBg, color: COLORS.red },
+          { val: (summary?.avgAdherence || 0) + "%", label: "Adherencia", bg: COLORS.greenBg, color: COLORS.green },
         ].map((s, i) => (
           <div key={i} style={{ flex: 1, padding: 14, borderRadius: 14, background: s.bg, textAlign: "center" }}>
             <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.val}</div>
@@ -600,24 +613,71 @@ function EditPatientForm({ patient, onSave, saving }) {
 export default function DashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [selectedPatient, setSelectedPatient] = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.getDashboardOverview();
+  const loadDashboard = async (isRetry = false) => {
+    setLoading(true); setError(null);
+    try {
+      const res = await api.getDashboardOverview();
+      if (res?.data) {
         setData(res.data);
-      } catch (err) { console.error(err); }
-      finally { setLoading(false); }
-    })();
-  }, []);
+      } else {
+        throw new Error("El servidor respondió sin datos. Intente nuevamente.");
+      }
+    } catch (err) {
+      console.error("Dashboard error:", err);
+      const msg = err.message || "Error desconocido";
+      // Auto-retry once on connection errors (cold start)
+      if (!isRetry && (msg.includes("conexión") || msg.includes("fetch") || msg.includes("Failed"))) {
+        setError("El servidor está despertando... reintentando automáticamente.");
+        setTimeout(() => { setRetryCount(c => c + 1); loadDashboard(true); }, 5000);
+        return;
+      }
+      setError(msg);
+    }
+    finally { setLoading(false); }
+  };
 
-  if (loading) return <LoadingSpinner text="Cargando dashboard..." />;
-  if (!data) return null;
+  useEffect(() => { loadDashboard(); }, []);
+
+  if (loading) return (
+    <div style={{ textAlign: "center", padding: "60px 20px" }}>
+      <LoadingSpinner text={retryCount > 0 ? "Reconectando con el servidor..." : "Cargando dashboard..."} />
+      {retryCount === 0 && (
+        <div style={{ fontSize: 13, color: "#94A3B8", marginTop: 16, lineHeight: 1.5 }}>
+          Si tarda más de 30 segundos, el servidor puede estar en modo reposo (Render free tier).
+        </div>
+      )}
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ textAlign: "center", padding: "40px 20px" }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: "#1E293B", marginBottom: 8 }}>Error al cargar el dashboard</div>
+      <div style={{ fontSize: 14, color: "#64748B", marginBottom: 20, lineHeight: 1.5 }}>{error}</div>
+      <BigButton onClick={() => { setRetryCount(c => c + 1); loadDashboard(); }} icon="🔄" color="#0A8A8F">Reintentar</BigButton>
+      <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 16, lineHeight: 1.5 }}>
+        Consejo: Si el error persiste, verifique que el backend esté corriendo en Render<br />
+        y que haya ejecutado <code style={{ background: "#F1F5F9", padding: "2px 6px", borderRadius: 4 }}>node seeds/seed.js</code>
+      </div>
+    </div>
+  );
+
+  if (!data) return (
+    <div style={{ textAlign: "center", padding: "40px 20px" }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: "#1E293B", marginBottom: 8 }}>Sin datos</div>
+      <div style={{ fontSize: 14, color: "#64748B", marginBottom: 20, lineHeight: 1.5 }}>No se encontraron pacientes. Ejecute el seed o registre pacientes.</div>
+      <BigButton onClick={() => loadDashboard()} icon="🔄" color="#0A8A8F">Recargar</BigButton>
+    </div>
+  );
 
   if (selectedPatient) {
     return <PatientDetail patientId={selectedPatient} onBack={() => setSelectedPatient(null)} />;
   }
 
-  return <PatientList patients={data.patients} summary={data.summary} onSelectPatient={setSelectedPatient} />;
+  return <PatientList patients={data.patients || []} summary={data.summary || {}} onSelectPatient={setSelectedPatient} />;
 }

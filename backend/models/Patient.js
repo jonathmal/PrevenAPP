@@ -61,6 +61,12 @@ const PatientSchema = new mongoose.Schema({
   studyId: String,
   enrollmentDate: Date,
   consentSigned: { type: Boolean, default: false },
+  consent: {
+    version: String,         // e.g. "1.0"
+    dateAccepted: Date,
+    method: { type: String, default: "digital" }, // digital
+    revokedAt: Date,
+  },
   tccCurrentPhase: { type: Number, default: 1, min: 1, max: 4 },
   tccCurrentWeek: { type: Number, default: 1, min: 1, max: 8 },
   isActive: { type: Boolean, default: true },

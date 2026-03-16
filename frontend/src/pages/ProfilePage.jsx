@@ -172,6 +172,35 @@ export default function ProfilePage() {
       <div style={{ textAlign: "center", padding: "16px 20px 20px", fontSize: 12, color: T.muted, lineHeight: 1.6 }}>
         📋 Los datos autoreportados serán validados por su médico.
       </div>
+
+      {/* Consent management — Ley 81 */}
+      <Section title="Protección de Datos" icon="🛡️">
+        <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.6, marginBottom: 12 }}>
+          Sus datos están protegidos por la <strong>Ley 81 de 2019</strong>. Usted tiene derecho a acceder, rectificar, cancelar u oponerse al tratamiento de sus datos (derechos ARCOP).
+        </div>
+        {patient?.consent?.dateAccepted && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 10, background: "#F0FDF4", marginBottom: 10 }}>
+            <span style={{ fontSize: 14 }}>✓</span>
+            <div style={{ fontSize: 13, color: "#16A34A", fontWeight: 600 }}>
+              Consentimiento aceptado el {new Date(patient.consent.dateAccepted).toLocaleDateString("es-PA", { day: "numeric", month: "long", year: "numeric" })}
+              {patient.consent.version && <span style={{ fontWeight: 400, color: T.muted }}> · v{patient.consent.version}</span>}
+            </div>
+          </div>
+        )}
+        <button onClick={async () => {
+          if (confirm("¿Está seguro de que desea revocar su consentimiento? Esto suspenderá el procesamiento de nuevos datos.")) {
+            try { await api.revokeConsent(); alert("Consentimiento revocado. Contacte a su centro de salud para solicitar eliminación de datos."); window.location.reload(); }
+            catch (e) { alert(e.message); }
+          }
+        }} style={{
+          width: "100%", padding: 12, borderRadius: 10,
+          border: "2px solid #FEE2E2", background: "#fff",
+          fontSize: 13, fontWeight: 600, color: "#DC2626", cursor: "pointer",
+        }}>Revocar consentimiento</button>
+        <div style={{ fontSize: 11, color: T.muted, marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
+          ANTAI · Dirección de Protección de Datos Personales
+        </div>
+      </Section>
     </div>
   );
 }

@@ -70,6 +70,9 @@ class ApiService {
     return this.get("/auth/me");
   }
 
+  giveConsent(version) { return this.post("/auth/consent", { version }); }
+  revokeConsent() { return this.post("/auth/consent/revoke"); }
+
   logout() {
     this.setToken(null);
     localStorage.removeItem("prevenapp_user");
