@@ -6,8 +6,8 @@
 const mongoose = require("mongoose");
 const config = require("../config");
 const {
-  User, Patient, BPReading, GlucoseReading, WeightReading,
-  Medication, MedLog, Screening, ABCRecord, SMARTGoal, TCCProgress,
+  User, Patient, BPReading, GlucoseReading, WeightReading, Vaccination,
+  Medication, MedLog, Screening, ABCRecord, SMARTGoal, TCCProgress, HungerScale,
 } = require("../models");
 
 const seed = async () => {
@@ -15,7 +15,7 @@ const seed = async () => {
   console.log("🌱 Conectado a MongoDB. Iniciando seed...");
 
   // Clear existing data
-  const models = [User, Patient, BPReading, GlucoseReading, WeightReading, Medication, MedLog, Screening, ABCRecord, SMARTGoal, TCCProgress];
+  const models = [User, Patient, BPReading, GlucoseReading, WeightReading, Medication, MedLog, Screening, ABCRecord, SMARTGoal, TCCProgress, HungerScale, Vaccination];
   for (const Model of models) await Model.deleteMany({});
   console.log("🗑️  Datos anteriores eliminados.");
 
