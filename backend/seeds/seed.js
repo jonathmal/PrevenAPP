@@ -16,7 +16,9 @@ const seed = async () => {
 
   // Clear existing data
   const models = [User, Patient, BPReading, GlucoseReading, WeightReading, Medication, MedLog, Screening, ABCRecord, SMARTGoal, TCCProgress, HungerScale, Vaccination];
-  for (const Model of models) await Model.deleteMany({});
+  for (const Model of models) {
+    if (Model && typeof Model.deleteMany === "function") await Model.deleteMany({});
+  }
   console.log("🗑️  Datos anteriores eliminados.");
 
   // ─── Create doctor user ────────────────────────────────
