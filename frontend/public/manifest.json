@@ -1,0 +1,32 @@
+{
+  "name": "PrevenApp v2.0 — Medicina Preventiva",
+  "short_name": "PrevenApp",
+  "description": "Automonitoreo cardiometabólico, tamizajes preventivos e intervención conductual digital — Centro de Salud de Macaracas, MINSA",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0D7377",
+  "theme_color": "#0D7377",
+  "categories": ["health", "medical"],
+  "lang": "es-PA",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
