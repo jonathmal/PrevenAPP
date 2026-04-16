@@ -1,18 +1,21 @@
 const express = require("express");
+
 const router = express.Router();
-const { asyncHandler, protect } = require("../middleware");
+const { asyncHandler, protect, requirePatient } = require("../middleware");
 const Screening = require("../models/Screening");
 const { generateScreeningsForPatient } = require("../rules/screeningRules");
 const { refreshScreenings } = require("../rules/refreshScreenings");
 
+router.use(protect, requirePatient);
+
 // POST /api/screenings — Add a screening record manually
-router.post("/", protect, asyncHandler(async (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const screening = await Screening.create({ ...req.body, patient: req.patient._id });
   res.status(201).json({ success: true, data: screening });
 }));
 
 // GET /api/screenings — Get all screenings for patient
-router.get("/", protect, asyncHandler(async (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const screenings = await Screening.find({ patient: req.patient._id, isActive: true })
     .sort({ status: 1 });
   const summary = {
@@ -25,7 +28,7 @@ router.get("/", protect, asyncHandler(async (req, res) => {
 }));
 
 // PUT /api/screenings/:id/complete — Mark screening as completed with result + classification
-router.put("/:id/complete", protect, asyncHandler(async (req, res) => {
+router.put("/:id/complete", asyncHandler(async (req, res) => {
   const { result, completedDate, resultClassification, customNextDue } = req.body;
   const screening = await Screening.findOne({ _id: req.params.id, patient: req.patient._id });
   if (!screening) return res.status(404).json({ success: false, error: "Tamizaje no encontrado" });
@@ -53,7 +56,7 @@ router.put("/:id/complete", protect, asyncHandler(async (req, res) => {
 }));
 
 // POST /api/screenings/generate — Generate + refresh screenings from rules engine
-router.post("/generate", protect, asyncHandler(async (req, res) => {
+router.post("/generate", asyncHandler(async (req, res) => {
   const result = await refreshScreenings(req.patient);
   const allScreenings = await Screening.find({ patient: req.patient._id, isActive: true }).sort({ status: 1 });
   res.json({

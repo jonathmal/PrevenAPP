@@ -39,6 +39,10 @@ router.post("/register", asyncHandler(async (req, res) => {
   if (existing) {
     return res.status(409).json({ success: false, error: "Ya existe una cuenta con esta cédula. Inicie sesión o use 'Olvidé mi contraseña'." });
   }
+  if (email) {
+    const emailTaken = await User.findOne({ email: email.trim().toLowerCase() });
+    if (emailTaken) return res.status(409).json({ success: false, error: "Este correo ya está registrado" });
+  }
 
   // Create user — always patient role on self-service
   const user = await User.create({

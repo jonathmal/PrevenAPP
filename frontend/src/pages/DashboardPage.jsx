@@ -215,6 +215,20 @@ function PatientList({ patients, summary, onSelectPatient, onReload }) {
                     {p.patient.age} años · {p.patient.sex === "M" ? "♂" : "♀"}
                     {p.patient.diagnoses?.length > 0 && " · " + p.patient.diagnoses.join(", ")}
                   </div>
+                  {/* Status indicators */}
+                  {(p.patient.consentSigned === false || p.patient.onboardingCompleted === false) && (
+                    <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                      {!p.patient.consentSigned && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#FEF2F2", color: "#DC2626" }}>Sin consentimiento</span>
+                      )}
+                      {p.patient.consentSigned && !p.patient.onboardingCompleted && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#FFFBEB", color: "#D97706" }}>Sin onboarding</span>
+                      )}
+                      {p.patient.createdBy === "doctor" && !p.patient.onboardingCompleted && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#F1F5F9", color: "#64748B" }}>Creado por médico</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {p.alertCount > 0 && (
                   <span style={{ padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: COLORS.redBg, color: COLORS.red }}>
@@ -349,13 +363,37 @@ function PatientDetail({ patientId, onBack }) {
 
   return (
     <div>
-      {/* Back button */}
-      <button onClick={onBack} style={{
-        display: "flex", alignItems: "center", gap: 6, padding: "8px 0", marginBottom: 12,
-        background: "none", border: "none", fontSize: 14, fontWeight: 600, color: COLORS.primary, cursor: "pointer",
-      }}>
-        ← Volver a la lista
-      </button>
+      {/* Top bar: back + admin actions */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <button onClick={onBack} style={{
+          flex: 1,
+          display: "flex", alignItems: "center", gap: 6, padding: "8px 0",
+          background: "none", border: "none", fontSize: 14, fontWeight: 600, color: COLORS.primary, cursor: "pointer",
+        }}>
+          ← Volver a la lista
+        </button>
+        <button onClick={async () => {
+          if (!confirm("¿Generar nueva contraseña temporal para este paciente?")) return;
+          try {
+            const res = await api.resetPatientPassword(patientId);
+            alert("✅ Nueva contraseña temporal:\n\nCédula: " + res.data.cedula + "\nContraseña: " + res.data.temporaryPassword + "\n\n" + res.data.message);
+          } catch (e) { alert("Error: " + e.message); }
+        }} style={{
+          padding: "6px 12px", borderRadius: 8, border: "1px solid " + COLORS.border,
+          background: "#fff", fontSize: 12, fontWeight: 700, color: COLORS.primary, cursor: "pointer",
+        }}>🔑 Reset</button>
+        <button onClick={async () => {
+          if (!confirm("¿Desactivar este paciente? Perderá acceso a la app pero sus datos se conservan.")) return;
+          try {
+            await api.deactivatePatient(patientId);
+            alert("Paciente desactivado. Volviendo a la lista.");
+            onBack();
+          } catch (e) { alert("Error: " + e.message); }
+        }} style={{
+          padding: "6px 12px", borderRadius: 8, border: "1px solid " + COLORS.redBg,
+          background: "#fff", fontSize: 12, fontWeight: 700, color: COLORS.red, cursor: "pointer",
+        }}>🚫 Desactivar</button>
+      </div>
 
       {/* Patient header */}
       <Card style={{ marginBottom: 16, padding: 16, borderTop: "4px solid #1E3A5F" }}>

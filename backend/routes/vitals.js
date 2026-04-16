@@ -1,14 +1,17 @@
 const express = require("express");
+
 const router = express.Router();
-const { asyncHandler, protect, authorize } = require("../middleware");
+const { asyncHandler, protect, requirePatient } = require("../middleware");
 const { BPReading, GlucoseReading, WeightReading, Patient } = require("../models");
+
+router.use(protect, requirePatient);
 
 // ═══════════════════════════════════════════════════════════
 // BLOOD PRESSURE
 // ═══════════════════════════════════════════════════════════
 
 // POST /api/vitals/bp — Record a BP reading
-router.post("/bp", protect, asyncHandler(async (req, res) => {
+router.post("/bp", asyncHandler(async (req, res) => {
   const { systolic, diastolic, heartRate, source, notes, measuredAt } = req.body;
   const reading = await BPReading.create({
     patient: req.patient._id,
@@ -19,7 +22,7 @@ router.post("/bp", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/vitals/bp — Get BP history
-router.get("/bp", protect, asyncHandler(async (req, res) => {
+router.get("/bp", asyncHandler(async (req, res) => {
   const { limit = 30, days } = req.query;
   const query = { patient: req.patient._id };
   if (days) {
@@ -34,14 +37,14 @@ router.get("/bp", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/vitals/bp/latest — Last reading
-router.get("/bp/latest", protect, asyncHandler(async (req, res) => {
+router.get("/bp/latest", asyncHandler(async (req, res) => {
   const reading = await BPReading.findOne({ patient: req.patient._id })
     .sort({ measuredAt: -1 });
   res.json({ success: true, data: reading });
 }));
 
 // GET /api/vitals/bp/stats — Stats for a period
-router.get("/bp/stats", protect, asyncHandler(async (req, res) => {
+router.get("/bp/stats", asyncHandler(async (req, res) => {
   const { days = 30 } = req.query;
   const since = new Date();
   since.setDate(since.getDate() - parseInt(days));
@@ -76,7 +79,7 @@ router.get("/bp/stats", protect, asyncHandler(async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 
 // POST /api/vitals/glucose
-router.post("/glucose", protect, asyncHandler(async (req, res) => {
+router.post("/glucose", asyncHandler(async (req, res) => {
   const { value, type, source, notes, measuredAt } = req.body;
   const reading = await GlucoseReading.create({
     patient: req.patient._id,
@@ -87,7 +90,7 @@ router.post("/glucose", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/vitals/glucose
-router.get("/glucose", protect, asyncHandler(async (req, res) => {
+router.get("/glucose", asyncHandler(async (req, res) => {
   const { limit = 30, days, type } = req.query;
   const query = { patient: req.patient._id };
   if (days) {
@@ -103,7 +106,7 @@ router.get("/glucose", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/vitals/glucose/latest
-router.get("/glucose/latest", protect, asyncHandler(async (req, res) => {
+router.get("/glucose/latest", asyncHandler(async (req, res) => {
   const reading = await GlucoseReading.findOne({ patient: req.patient._id })
     .sort({ measuredAt: -1 });
   res.json({ success: true, data: reading });
@@ -114,7 +117,7 @@ router.get("/glucose/latest", protect, asyncHandler(async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 
 // POST /api/vitals/weight
-router.post("/weight", protect, asyncHandler(async (req, res) => {
+router.post("/weight", asyncHandler(async (req, res) => {
   const { value, measuredAt } = req.body;
   // Compute BMI if patient has height
   let bmi = null;
@@ -132,7 +135,7 @@ router.post("/weight", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/vitals/weight
-router.get("/weight", protect, asyncHandler(async (req, res) => {
+router.get("/weight", asyncHandler(async (req, res) => {
   const { limit = 30 } = req.query;
   const readings = await WeightReading.find({ patient: req.patient._id })
     .sort({ measuredAt: -1 })

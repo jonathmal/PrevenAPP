@@ -1,7 +1,10 @@
 const express = require("express");
+
 const router = express.Router();
-const { asyncHandler, protect } = require("../middleware");
+const { asyncHandler, protect, requirePatient } = require("../middleware");
 const { Vaccination } = require("../models");
+
+router.use(protect, requirePatient);
 
 // Next-dose chain: { currentKey: { nextKey, nextLabel, monthsUntil } }
 const DOSE_CHAIN = {
@@ -43,13 +46,13 @@ function computeNextDose(key, dateAdministered) {
 }
 
 // GET /api/vaccinations
-router.get("/", protect, asyncHandler(async (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const records = await Vaccination.find({ patient: req.patient._id }).sort({ dateAdministered: -1 });
   res.json({ success: true, data: records });
 }));
 
 // POST /api/vaccinations — Record a vaccine dose with auto next-dose calculation
-router.post("/", protect, asyncHandler(async (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const { vaccineKey, vaccineName, doseLabel, dateAdministered, notes } = req.body;
   const next = computeNextDose(vaccineKey, dateAdministered);
 
@@ -66,7 +69,7 @@ router.post("/", protect, asyncHandler(async (req, res) => {
 }));
 
 // DELETE /api/vaccinations/:key
-router.delete("/:key", protect, asyncHandler(async (req, res) => {
+router.delete("/:key", asyncHandler(async (req, res) => {
   await Vaccination.findOneAndDelete({ patient: req.patient._id, vaccineKey: req.params.key });
   res.json({ success: true });
 }));

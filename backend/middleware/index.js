@@ -42,6 +42,17 @@ const authorize = (...roles) => (req, res, next) => {
   next();
 };
 
+// ─── Require a patient profile on req (only patient role) ──────
+const requirePatient = (req, res, next) => {
+  if (req.user.role !== "patient" || !req.patient) {
+    return res.status(403).json({
+      success: false,
+      error: "Este recurso es solo para pacientes. Los médicos deben usar el panel clínico.",
+    });
+  }
+  next();
+};
+
 // ─── Error handler middleware ────────────────────────────
 const errorHandler = (err, req, res, next) => {
   let error = { ...err };
@@ -70,4 +81,4 @@ const errorHandler = (err, req, res, next) => {
   });
 };
 
-module.exports = { asyncHandler, protect, authorize, errorHandler };
+module.exports = { asyncHandler, protect, authorize, requirePatient, errorHandler };

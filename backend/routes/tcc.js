@@ -1,14 +1,17 @@
 const express = require("express");
+
 const router = express.Router();
-const { asyncHandler, protect } = require("../middleware");
+const { asyncHandler, protect, requirePatient } = require("../middleware");
 const { ABCRecord, SMARTGoal, HungerScale, TCCProgress } = require("../models");
+
+router.use(protect, requirePatient);
 
 // ═══════════════════════════════════════════════════════════
 // TCC PROGRESS
 // ═══════════════════════════════════════════════════════════
 
 // GET /api/tcc/progress — Get TCC progress
-router.get("/progress", protect, asyncHandler(async (req, res) => {
+router.get("/progress", asyncHandler(async (req, res) => {
   let progress = await TCCProgress.findOne({ patient: req.patient._id });
   if (!progress) {
     progress = await TCCProgress.create({ patient: req.patient._id });
@@ -17,7 +20,7 @@ router.get("/progress", protect, asyncHandler(async (req, res) => {
 }));
 
 // PUT /api/tcc/progress/advance — Advance to next week/phase
-router.put("/progress/advance", protect, asyncHandler(async (req, res) => {
+router.put("/progress/advance", asyncHandler(async (req, res) => {
   const progress = await TCCProgress.findOne({ patient: req.patient._id });
   if (!progress) return res.status(404).json({ success: false, error: "Progreso no encontrado" });
 
@@ -42,7 +45,7 @@ router.put("/progress/advance", protect, asyncHandler(async (req, res) => {
 }));
 
 // PUT /api/tcc/progress/lesson — Mark a lesson as completed
-router.put("/progress/lesson", protect, asyncHandler(async (req, res) => {
+router.put("/progress/lesson", asyncHandler(async (req, res) => {
   const { lessonId } = req.body;
   const progress = await TCCProgress.findOneAndUpdate(
     { patient: req.patient._id },
@@ -61,7 +64,7 @@ router.put("/progress/lesson", protect, asyncHandler(async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 
 // POST /api/tcc/abc — Create ABC record
-router.post("/abc", protect, asyncHandler(async (req, res) => {
+router.post("/abc", asyncHandler(async (req, res) => {
   const { antecedent, behavior, consequence, mealContext } = req.body;
   const progress = await TCCProgress.findOne({ patient: req.patient._id });
 
@@ -83,7 +86,7 @@ router.post("/abc", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/tcc/abc — Get ABC records
-router.get("/abc", protect, asyncHandler(async (req, res) => {
+router.get("/abc", asyncHandler(async (req, res) => {
   const { limit = 20, week } = req.query;
   const query = { patient: req.patient._id };
   if (week) query.week = parseInt(week);
@@ -100,7 +103,7 @@ router.get("/abc", protect, asyncHandler(async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 
 // POST /api/tcc/goals — Create a SMART goal
-router.post("/goals", protect, asyncHandler(async (req, res) => {
+router.post("/goals", asyncHandler(async (req, res) => {
   const { description, specific, measurable, achievable, relevant, timeBound } = req.body;
   const progress = await TCCProgress.findOne({ patient: req.patient._id });
 
@@ -122,7 +125,7 @@ router.post("/goals", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/tcc/goals — Get goals
-router.get("/goals", protect, asyncHandler(async (req, res) => {
+router.get("/goals", asyncHandler(async (req, res) => {
   const { status, week } = req.query;
   const query = { patient: req.patient._id };
   if (status) query.status = status;
@@ -133,7 +136,7 @@ router.get("/goals", protect, asyncHandler(async (req, res) => {
 }));
 
 // PUT /api/tcc/goals/:id/checkin — Daily check-in on a goal
-router.put("/goals/:id/checkin", protect, asyncHandler(async (req, res) => {
+router.put("/goals/:id/checkin", asyncHandler(async (req, res) => {
   const { completed, notes } = req.body;
   const goal = await SMARTGoal.findOne({ _id: req.params.id, patient: req.patient._id });
   if (!goal) return res.status(404).json({ success: false, error: "Meta no encontrada" });
@@ -145,7 +148,7 @@ router.put("/goals/:id/checkin", protect, asyncHandler(async (req, res) => {
 }));
 
 // PUT /api/tcc/goals/:id/complete — Complete or close a goal
-router.put("/goals/:id/complete", protect, asyncHandler(async (req, res) => {
+router.put("/goals/:id/complete", asyncHandler(async (req, res) => {
   const { status, completionNotes } = req.body;
   const goal = await SMARTGoal.findOneAndUpdate(
     { _id: req.params.id, patient: req.patient._id },
@@ -169,7 +172,7 @@ router.put("/goals/:id/complete", protect, asyncHandler(async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 
 // POST /api/tcc/hunger — Record hunger scale
-router.post("/hunger", protect, asyncHandler(async (req, res) => {
+router.post("/hunger", asyncHandler(async (req, res) => {
   const { beforeMeal, afterMeal, mealType, wasEmotionalHunger, notes } = req.body;
   const entry = await HungerScale.create({
     patient: req.patient._id,
@@ -185,7 +188,7 @@ router.post("/hunger", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/tcc/hunger — Get hunger scale entries
-router.get("/hunger", protect, asyncHandler(async (req, res) => {
+router.get("/hunger", asyncHandler(async (req, res) => {
   const { limit = 20, days } = req.query;
   const query = { patient: req.patient._id };
   if (days) {
@@ -202,7 +205,7 @@ router.get("/hunger", protect, asyncHandler(async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 
 // GET /api/tcc/summary — Overall TCC engagement metrics
-router.get("/summary", protect, asyncHandler(async (req, res) => {
+router.get("/summary", asyncHandler(async (req, res) => {
   const progress = await TCCProgress.findOne({ patient: req.patient._id });
   const thisWeek = new Date();
   thisWeek.setDate(thisWeek.getDate() - 7);

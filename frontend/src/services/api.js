@@ -77,7 +77,8 @@ class ApiService {
   resetPassword(cedula, securityAnswer, newPassword) { return this.post("/auth/reset-password", { cedula, securityAnswer, newPassword }); }
   completeOnboarding() { return this.post("/auth/onboarding/complete"); }
   updateMyProfile(data) { return this.put("/auth/me/profile", data); }
-updatePatientProfile(data) { return this.put("/auth/me/patient", data); }
+  updatePatientProfile(data) { return this.put("/auth/me/patient", data); }
+
   // Doctor → patient management
   createPatient(data) { return this.post("/dashboard/patient", data); }
   deactivatePatient(patientId) { return this.put("/dashboard/patient/" + patientId + "/deactivate"); }

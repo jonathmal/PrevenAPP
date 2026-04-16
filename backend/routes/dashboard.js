@@ -29,7 +29,14 @@ router.get("/overview", asyncHandler(async (req, res) => {
     if (adherence !== null && adherence < 60) alertCount++;
     if (overdueScreenings > 0) alertCount++;
     return {
-      patient: { id: patient._id, name: patient.user?.name || "N/A", age: patient.age, sex: patient.sex, diagnoses: patient.diagnoses?.filter(d => d.isActive).map(d => d.name) || [] },
+      patient: {
+        id: patient._id, name: patient.user?.name || "N/A",
+        age: patient.age, sex: patient.sex,
+        diagnoses: patient.diagnoses?.filter(d => d.isActive).map(d => d.name) || [],
+        onboardingCompleted: patient.onboardingCompleted,
+        consentSigned: patient.consentSigned,
+        createdBy: patient.createdBy,
+      },
       vitals: {
         bp: latestBP ? { value: latestBP.systolic + "/" + latestBP.diastolic, status: latestBP.status, date: latestBP.measuredAt } : null,
         glucose: latestGluc ? { value: latestGluc.value, status: latestGluc.status, date: latestGluc.measuredAt } : null,
@@ -109,18 +116,6 @@ router.put("/screening/:screeningId/validate", asyncHandler(async (req, res) => 
   const screening = await Screening.findByIdAndUpdate(req.params.screeningId, { validated: true }, { new: true });
   if (!screening) return res.status(404).json({ success: false, error: "Tamizaje no encontrado" });
   res.json({ success: true, data: screening });
-}));
-
-// ─── ICD-10 Search ─────────────────────────────────────────
-const ICD10_CODES = require("../data/icd10");
-
-router.get("/icd10", asyncHandler(async (req, res) => {
-  const q = (req.query.q || "").toLowerCase().trim();
-  if (!q || q.length < 2) return res.json({ success: true, data: [] });
-  const results = ICD10_CODES.filter(c =>
-    c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
-  ).slice(0, 15);
-  res.json({ success: true, data: results });
 }));
 
 // ─── Doctor Medication Management ──────────────────────────

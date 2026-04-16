@@ -1,10 +1,13 @@
 const express = require("express");
+
 const router = express.Router();
-const { asyncHandler, protect } = require("../middleware");
+const { asyncHandler, protect, requirePatient } = require("../middleware");
 const { Medication, MedLog } = require("../models");
 
+router.use(protect, requirePatient);
+
 // POST /api/medications — Add a medication (tracks who added it)
-router.post("/", protect, asyncHandler(async (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const med = await Medication.create({
     ...req.body,
     patient: req.patient._id,
@@ -15,27 +18,27 @@ router.post("/", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/medications
-router.get("/", protect, asyncHandler(async (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const meds = await Medication.find({ patient: req.patient._id, isActive: true }).sort({ name: 1 });
   res.json({ success: true, count: meds.length, data: meds });
 }));
 
 // PUT /api/medications/:id
-router.put("/:id", protect, asyncHandler(async (req, res) => {
+router.put("/:id", asyncHandler(async (req, res) => {
   const med = await Medication.findOneAndUpdate({ _id: req.params.id, patient: req.patient._id }, req.body, { new: true, runValidators: true });
   if (!med) return res.status(404).json({ success: false, error: "Medicamento no encontrado" });
   res.json({ success: true, data: med });
 }));
 
 // DELETE /api/medications/:id
-router.delete("/:id", protect, asyncHandler(async (req, res) => {
+router.delete("/:id", asyncHandler(async (req, res) => {
   const med = await Medication.findOneAndUpdate({ _id: req.params.id, patient: req.patient._id }, { isActive: false, endDate: new Date() }, { new: true });
   if (!med) return res.status(404).json({ success: false, error: "Medicamento no encontrado" });
   res.json({ success: true, data: med });
 }));
 
 // POST /api/medications/log
-router.post("/log", protect, asyncHandler(async (req, res) => {
+router.post("/log", asyncHandler(async (req, res) => {
   const { medicationId, scheduledTime, taken, skippedReason } = req.body;
   const date = new Date().toISOString().split("T")[0];
   const log = await MedLog.findOneAndUpdate(
@@ -47,7 +50,7 @@ router.post("/log", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/medications/log/today
-router.get("/log/today", protect, asyncHandler(async (req, res) => {
+router.get("/log/today", asyncHandler(async (req, res) => {
   const date = new Date().toISOString().split("T")[0];
   const meds = await Medication.find({ patient: req.patient._id, isActive: true });
   const logs = await MedLog.find({ patient: req.patient._id, date });
@@ -60,7 +63,7 @@ router.get("/log/today", protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/medications/log/adherence
-router.get("/log/adherence", protect, asyncHandler(async (req, res) => {
+router.get("/log/adherence", asyncHandler(async (req, res) => {
   const { days = 7 } = req.query;
   const since = new Date(); since.setDate(since.getDate() - parseInt(days));
   const logs = await MedLog.find({ patient: req.patient._id, date: { $gte: since.toISOString().split("T")[0] } });

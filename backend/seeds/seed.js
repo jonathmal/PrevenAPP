@@ -170,7 +170,11 @@ const seed = async () => {
       diagnoses: pd.diagnoses,
       familyHistory: pd.familyHistory || [],
       riskFactors: pd.riskFactors || { smoking: "never" },
-      enrollmentDate: new Date(), consentSigned: true,
+      enrollmentDate: new Date(),
+      consentSigned: true,
+      consent: { version: "1.0", dateAccepted: new Date(), method: "digital" },
+      onboardingCompleted: true,
+      createdBy: "self",
       studyId: `MAC-${pd.cedula.split("-").pop()}`,
     });
 
