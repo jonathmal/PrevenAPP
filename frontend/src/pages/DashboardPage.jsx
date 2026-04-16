@@ -1,0 +1,806 @@
+import { useState, useEffect } from "react";
+import api from "../services/api";
+import { Card, BigButton, LoadingSpinner, SectionTitle, StatusBadge, EmptyState, COLORS, STATUS, formatDate } from "../components/UI";
+
+// ═══════════════════════════════════════════════════════════
+// PATIENT LIST VIEW (default)
+// ═══════════════════════════════════════════════════════════
+function CreatePatientModal({ onClose, onCreated }) {
+  const [data, setData] = useState({ cedula: "", name: "", phone: "", email: "", dateOfBirth: "", sex: "F" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [credentials, setCredentials] = useState(null);
+  const set = (k, v) => setData(p => ({ ...p, [k]: v }));
+
+  const submit = async () => {
+    setError("");
+    if (!data.cedula.trim() || !data.name.trim() || !data.dateOfBirth) {
+      return setError("Cédula, nombre y fecha de nacimiento son requeridos");
+    }
+    setSaving(true);
+    try {
+      const res = await api.createPatient({
+        cedula: data.cedula.trim(), name: data.name.trim(),
+        phone: data.phone.trim() || undefined, email: data.email.trim() || undefined,
+        dateOfBirth: data.dateOfBirth, sex: data.sex,
+      });
+      setCredentials(res.data.credentials);
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  };
+
+  const iS = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #E2E8F0", fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+  const lS = { display: "block", fontSize: 12, fontWeight: 700, color: "#64748B", marginBottom: 4 };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "20px 20px 0 0", padding: "16px 16px 28px", width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: "#E2E8F0", margin: "0 auto 12px" }} />
+
+        {credentials ? (
+          <div>
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#16A34A" }}>Paciente creado</div>
+            </div>
+            <div style={{ padding: "16px", borderRadius: 14, background: "#FFFBEB", border: "2px solid #FEF3C7", marginBottom: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#92400E", marginBottom: 8 }}>⚠ CREDENCIALES TEMPORALES</div>
+              <div style={{ fontSize: 14, color: "#1E293B", lineHeight: 1.8 }}>
+                <div><strong>Cédula:</strong> <span style={{ fontFamily: "monospace", background: "#fff", padding: "2px 8px", borderRadius: 6 }}>{credentials.cedula}</span></div>
+                <div><strong>Contraseña:</strong> <span style={{ fontFamily: "monospace", background: "#fff", padding: "2px 8px", borderRadius: 6, fontSize: 16, fontWeight: 700 }}>{credentials.temporaryPassword}</span></div>
+              </div>
+              <div style={{ fontSize: 12, color: "#92400E", marginTop: 10, lineHeight: 1.5 }}>
+                {credentials.message}
+              </div>
+            </div>
+            <button onClick={() => { navigator.clipboard?.writeText("Cédula: " + credentials.cedula + "\nContraseña temporal: " + credentials.temporaryPassword); alert("Copiado al portapapeles"); }}
+              style={{ width: "100%", padding: 12, marginBottom: 8, borderRadius: 12, border: "1px solid #E2E8F0", background: "#fff", fontSize: 14, fontWeight: 600, color: "#0A8A8F", cursor: "pointer" }}>
+              📋 Copiar credenciales
+            </button>
+            <button onClick={() => { onCreated(); onClose(); }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: "linear-gradient(135deg, #064E52, #0A8A8F)", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+              Cerrar
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#1E293B", marginBottom: 4 }}>👤 Crear nuevo paciente</div>
+            <div style={{ fontSize: 13, color: "#64748B", marginBottom: 16 }}>Se generará una contraseña temporal automáticamente</div>
+
+            {error && <div style={{ padding: "10px 14px", borderRadius: 10, background: "#FEF2F2", marginBottom: 12, fontSize: 13, fontWeight: 600, color: "#DC2626" }}>⚠ {error}</div>}
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={lS}>Cédula *</label>
+              <input value={data.cedula} onChange={e => set("cedula", e.target.value)} placeholder="8-937-44" style={iS} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={lS}>Nombre completo *</label>
+              <input value={data.name} onChange={e => set("name", e.target.value)} placeholder="Nombre Apellido" style={iS} />
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={lS}>Fecha nacimiento *</label>
+                <input type="date" value={data.dateOfBirth} onChange={e => set("dateOfBirth", e.target.value)} style={iS} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={lS}>Sexo *</label>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[["F", "♀"], ["M", "♂"]].map(([v, l]) => (
+                    <button key={v} onClick={() => set("sex", v)} style={{ flex: 1, padding: 12, borderRadius: 10, border: "none", background: data.sex === v ? "#0A8A8F" : "#F1F5F9", color: data.sex === v ? "#fff" : "#64748B", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>{l}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={lS}>Teléfono (opcional)</label>
+              <input value={data.phone} onChange={e => set("phone", e.target.value)} placeholder="6700-1234" style={iS} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={lS}>Correo (opcional)</label>
+              <input type="email" value={data.email} onChange={e => set("email", e.target.value)} style={iS} />
+            </div>
+
+            <button onClick={submit} disabled={saving} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: "linear-gradient(135deg, #064E52, #0A8A8F)", color: "#fff", fontSize: 16, fontWeight: 800, cursor: saving ? "wait" : "pointer", boxShadow: "0 4px 12px rgba(10,138,143,0.3)" }}>
+              {saving ? "Creando..." : "Crear paciente"}
+            </button>
+            <button onClick={onClose} style={{ width: "100%", padding: 12, marginTop: 8, borderRadius: 12, border: "1px solid #E2E8F0", background: "#fff", fontSize: 14, fontWeight: 600, color: "#64748B", cursor: "pointer" }}>
+              Cancelar
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PatientList({ patients, summary, onSelectPatient, onReload }) {
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [showCreate, setShowCreate] = useState(false);
+
+  if (!patients || patients.length === 0) {
+    return (
+      <div>
+        <div style={{ textAlign: "center", padding: "40px 20px" }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#1E293B", marginBottom: 8 }}>Sin pacientes registrados</div>
+          <div style={{ fontSize: 14, color: "#64748B", lineHeight: 1.6, marginBottom: 20 }}>
+            Cree su primer paciente o ejecute <code style={{ background: "#F1F5F9", padding: "2px 8px", borderRadius: 6, fontSize: 13 }}>node seeds/seed.js</code> para datos de prueba.
+          </div>
+          <button onClick={() => setShowCreate(true)} style={{ padding: "14px 28px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #064E52, #0A8A8F)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(10,138,143,0.3)" }}>
+            👤 Crear primer paciente
+          </button>
+        </div>
+        {showCreate && <CreatePatientModal onClose={() => setShowCreate(false)} onCreated={onReload} />}
+      </div>
+    );
+  }
+
+  const filtered = patients.filter(p => {
+    if (!p?.patient?.name) return false;
+    const nameMatch = p.patient.name.toLowerCase().includes(search.toLowerCase());
+    if (filter === "alert") return nameMatch && p.alertCount > 0;
+    if (filter === "controlled") return nameMatch && p.alertCount === 0;
+    return nameMatch;
+  });
+
+  return (
+    <div>
+      {/* Summary cards */}
+      <div className="fade-in" style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {[
+          { val: summary?.totalPatients || 0, label: "Pacientes", bg: COLORS.primaryLight, color: COLORS.primary },
+          { val: summary?.patientsInAlert || 0, label: "En alerta", bg: COLORS.redBg, color: COLORS.red },
+          { val: (summary?.avgAdherence || 0) + "%", label: "Adherencia", bg: COLORS.greenBg, color: COLORS.green },
+        ].map((s, i) => (
+          <div key={i} style={{ flex: 1, padding: 14, borderRadius: 14, background: s.bg, textAlign: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.val}</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Search + Create */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <div style={{ flex: 1, position: "relative" }}>
+          <span style={{ position: "absolute", left: 14, top: 13, fontSize: 16, opacity: 0.4 }}>🔍</span>
+          <input
+            type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar paciente por nombre..."
+            style={{
+              width: "100%", padding: "12px 12px 12px 40px", borderRadius: 12,
+              border: "2px solid " + COLORS.border, fontSize: 14, fontWeight: 500,
+              outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+            }}
+          />
+        </div>
+        <button onClick={() => setShowCreate(true)} style={{
+          padding: "0 16px", borderRadius: 12, border: "none",
+          background: "linear-gradient(135deg, #064E52, #0A8A8F)", color: "#fff",
+          fontSize: 14, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+          boxShadow: "0 2px 8px rgba(10,138,143,0.25)",
+        }}>+ Crear</button>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        {[
+          { key: "all", label: "Todos", count: patients.length },
+          { key: "alert", label: "En alerta", count: patients.filter(p => p.alertCount > 0).length },
+          { key: "controlled", label: "Controlados", count: patients.filter(p => p.alertCount === 0).length },
+        ].map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)} style={{
+            flex: 1, padding: "8px 6px", borderRadius: 10, border: "none",
+            background: filter === f.key ? "#1E3A5F" : COLORS.divider,
+            color: filter === f.key ? "#fff" : COLORS.textSec,
+            fontSize: 12, fontWeight: 700, cursor: "pointer",
+          }}>
+            {f.label} ({f.count})
+          </button>
+        ))}
+      </div>
+
+      {/* Patient list */}
+      <div className="stagger" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {filtered.length === 0 && (
+          <EmptyState icon="🔍" message="No se encontraron pacientes" />
+        )}
+        {filtered.map((p, i) => {
+          const alertColor = p.alertCount > 0 ? COLORS.red : p.vitals.bp?.status === "yellow" ? COLORS.yellow : COLORS.green;
+          return (
+            <Card key={i} onClick={() => onSelectPatient(p.patient.id)} style={{ padding: 14, borderLeft: "4px solid " + alertColor }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: COLORS.text }}>{p.patient.name}</div>
+                  <div style={{ fontSize: 12, color: COLORS.textSec }}>
+                    {p.patient.age} años · {p.patient.sex === "M" ? "♂" : "♀"}
+                    {p.patient.diagnoses?.length > 0 && " · " + p.patient.diagnoses.join(", ")}
+                  </div>
+                </div>
+                {p.alertCount > 0 && (
+                  <span style={{ padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: COLORS.redBg, color: COLORS.red }}>
+                    {p.alertCount} alerta{p.alertCount > 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {p.vitals.bp && (
+                  <div style={{ flex: 1, padding: "6px 8px", borderRadius: 8, background: STATUS[p.vitals.bp.status]?.bg || COLORS.divider, textAlign: "center" }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: STATUS[p.vitals.bp.status]?.color }}>PA</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: STATUS[p.vitals.bp.status]?.color }}>{p.vitals.bp.value}</div>
+                  </div>
+                )}
+                {p.vitals.glucose && (
+                  <div style={{ flex: 1, padding: "6px 8px", borderRadius: 8, background: STATUS[p.vitals.glucose.status]?.bg || COLORS.divider, textAlign: "center" }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: STATUS[p.vitals.glucose.status]?.color }}>Glucosa</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: STATUS[p.vitals.glucose.status]?.color }}>{p.vitals.glucose.value}</div>
+                  </div>
+                )}
+                {p.adherence !== null && (
+                  <div style={{ flex: 1, padding: "6px 8px", borderRadius: 8, background: p.adherence >= 80 ? COLORS.greenBg : p.adherence >= 60 ? COLORS.yellowBg : COLORS.redBg, textAlign: "center" }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: p.adherence >= 80 ? COLORS.green : p.adherence >= 60 ? COLORS.yellow : COLORS.red }}>Adherencia</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: p.adherence >= 80 ? COLORS.green : p.adherence >= 60 ? COLORS.yellow : COLORS.red }}>{p.adherence}%</div>
+                  </div>
+                )}
+                {p.overdueScreenings > 0 && (
+                  <div style={{ flex: 1, padding: "6px 8px", borderRadius: 8, background: COLORS.yellowBg, textAlign: "center" }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: COLORS.yellow }}>Tamizajes</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.yellow }}>{p.overdueScreenings}</div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+      {showCreate && <CreatePatientModal onClose={() => setShowCreate(false)} onCreated={onReload} />}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PATIENT DETAIL VIEW
+// ═══════════════════════════════════════════════════════════
+function PatientDetail({ patientId, onBack }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("screenings");
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await api.getPatientDetail(patientId);
+      setData(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [patientId]);
+
+  const handleCompleteScreening = async (screening) => {
+    setSaving(true);
+    try {
+      const body = {
+        lastDone: resultDate || new Date().toISOString(),
+        result: resultText || "",
+        resultClassification: resultClassification || undefined,
+      };
+      if (nextDateMode === "suggested" && suggestedNext) body.customNextDue = suggestedNext;
+      else if (nextDateMode === "custom" && customNext) body.customNextDue = customNext;
+      await api.updateScreeningStatus(resultForm.id, body);
+      setResultForm(null);
+      load();
+    } catch (err) { alert(err.message); }
+    finally { setSaving(false); }
+  };
+
+  const [resultForm, setResultForm] = useState(null);
+  const [resultText, setResultText] = useState("");
+  const [resultDate, setResultDate] = useState(new Date().toISOString().split("T")[0]);
+  const [resultClassification, setResultClassification] = useState("");
+  const [nextDateMode, setNextDateMode] = useState("suggested");
+  const [suggestedNext, setSuggestedNext] = useState("");
+  const [customNext, setCustomNext] = useState("");
+
+  const computeSuggested = (s, cls) => {
+    const base = new Date(resultDate || new Date());
+    let months = s.normalInterval || s.intervalMonths || 12;
+    if (cls === "borderline") months = s.borderlineInterval || Math.round(months * 0.5);
+    if (cls === "pathological") months = s.pathologicalInterval || 3;
+    base.setMonth(base.getMonth() + months);
+    return base.toISOString().split("T")[0];
+  };
+
+  const openResultForm = (s) => {
+    setResultForm({ id: s._id, name: s.name, screening: s });
+    setResultText(""); setResultDate(new Date().toISOString().split("T")[0]);
+    setResultClassification(""); setNextDateMode("suggested"); setSuggestedNext(""); setCustomNext("");
+  };
+
+  const handleClassify = (s, cls) => {
+    setResultClassification(cls);
+    setSuggestedNext(computeSuggested(s, cls));
+    setNextDateMode("suggested");
+  };
+
+  const handleUpdatePatient = async (field, value) => {
+    setSaving(true);
+    try {
+      await api.updatePatient(patientId, { [field]: value });
+      load();
+    } catch (err) { alert(err.message); }
+    finally { setSaving(false); }
+  };
+
+  if (loading) return <LoadingSpinner text="Cargando paciente..." />;
+  if (!data) return null;
+
+  const { patient, vitals, medications, screenings, adherence7d, tcc } = data;
+  const p = patient;
+  const diag = p.diagnoses?.filter(d => d.isActive) || [];
+  const fhx = p.familyHistory || [];
+  const bmi = p.bmi || (p.height && p.weight ? (p.weight / Math.pow(p.height / 100, 2)).toFixed(1) : null);
+
+  const screeningsByStatus = {
+    red: screenings.filter(s => s.status === "red"),
+    yellow: screenings.filter(s => s.status === "yellow"),
+    green: screenings.filter(s => s.status === "green"),
+  };
+
+  return (
+    <div>
+      {/* Back button */}
+      <button onClick={onBack} style={{
+        display: "flex", alignItems: "center", gap: 6, padding: "8px 0", marginBottom: 12,
+        background: "none", border: "none", fontSize: 14, fontWeight: 600, color: COLORS.primary, cursor: "pointer",
+      }}>
+        ← Volver a la lista
+      </button>
+
+      {/* Patient header */}
+      <Card style={{ marginBottom: 16, padding: 16, borderTop: "4px solid #1E3A5F" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: "#1E3A5F", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "#fff", fontWeight: 800 }}>
+            {p.user?.name?.charAt(0) || "P"}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: COLORS.text, fontFamily: "'Source Serif 4', Georgia, serif" }}>{p.user?.name}</div>
+            <div style={{ fontSize: 13, color: COLORS.textSec }}>
+              {p.age} años · {p.sex === "M" ? "Masculino" : "Femenino"} · {p.user?.cedula}
+            </div>
+          </div>
+        </div>
+
+        {/* Metrics */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+          {p.height && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 6, background: COLORS.primaryLight, color: COLORS.primary }}>📏 {p.height} cm</span>}
+          {p.weight && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 6, background: COLORS.primaryLight, color: COLORS.primary }}>⚖️ {p.weight} kg</span>}
+          {bmi && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: bmi < 25 ? COLORS.greenBg : bmi < 30 ? COLORS.yellowBg : COLORS.redBg, color: bmi < 25 ? COLORS.green : bmi < 30 ? COLORS.yellow : COLORS.red }}>IMC {bmi}</span>}
+          {p.waistCircumference && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 6, background: COLORS.primaryLight, color: COLORS.primary }}>📐 CC: {p.waistCircumference} cm</span>}
+          {adherence7d !== null && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: adherence7d >= 80 ? COLORS.greenBg : COLORS.yellowBg, color: adherence7d >= 80 ? COLORS.green : COLORS.yellow }}>💊 Adherencia 7d: {adherence7d}%</span>}
+        </div>
+
+        {/* APP badges */}
+        {diag.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.textSec, marginBottom: 4, textTransform: "uppercase" }}>APP</div>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {diag.map((dx, i) => (
+                <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: COLORS.redBg, color: COLORS.red }}>{dx.name}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {fhx.length > 0 && (
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.textSec, marginBottom: 4, textTransform: "uppercase" }}>APF</div>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {fhx.map((fh, i) => (
+                <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: "#EDE9FE", color: "#6366F1" }}>{fh.condition} ({fh.relative})</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        {[
+          { key: "screenings", label: "Tamizajes", count: screenings.length },
+          { key: "vitals", label: "Vitales" },
+          { key: "meds", label: "Meds", count: medications.length },
+          { key: "edit", label: "Editar", icon: "✏️" },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={{
+            flex: 1, padding: "10px 4px", borderRadius: 10, border: "none",
+            background: tab === t.key ? "#1E3A5F" : COLORS.divider,
+            color: tab === t.key ? "#fff" : COLORS.textSec,
+            fontSize: 12, fontWeight: 700, cursor: "pointer",
+          }}>
+            {t.icon || ""}{t.label}{t.count !== undefined ? " (" + t.count + ")" : ""}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── Screenings tab ──────────────────────────────── */}
+      {tab === "screenings" && (
+        <div>
+          {["red", "yellow", "green"].map(status => {
+            const items = screeningsByStatus[status];
+            if (!items || items.length === 0) return null;
+            const labels = { red: "Vencidos", yellow: "Próximos a vencer", green: "Al día" };
+            const colors = { red: COLORS.red, yellow: COLORS.yellow, green: COLORS.green };
+            return (
+              <div key={status} style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: colors[status], marginBottom: 8 }}>
+                  {STATUS[status]?.icon} {labels[status]} ({items.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {items.map(s => (
+                    <Card key={s._id} style={{ padding: 12, borderLeft: "3px solid " + colors[status] }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.text }}>{s.name}</div>
+                          {s.reason && <div style={{ fontSize: 11, color: COLORS.primary, marginTop: 2 }}>💡 {s.reason}</div>}
+                          {s.lastDone && <div style={{ fontSize: 11, color: COLORS.textSec, marginTop: 2 }}>Último: {formatDate(s.lastDone)}</div>}
+                          {s.source && <div style={{ fontSize: 10, color: COLORS.textSec, fontStyle: "italic" }}>{s.source}</div>}
+                        </div>
+                        <StatusBadge status={s.status} />
+                      </div>
+                      {status !== "green" && (
+                        <button onClick={() => openResultForm(s)} disabled={saving}
+                          style={{
+                            marginTop: 8, padding: "8px 12px", borderRadius: 8, border: "none",
+                            background: COLORS.green, color: "#fff", fontSize: 12, fontWeight: 700,
+                            cursor: saving ? "not-allowed" : "pointer", width: "100%",
+                          }}>
+                          📝 Registrar resultado
+                        </button>
+                      )}
+                      {s.result && (
+                        <div style={{ marginTop: 6, padding: "6px 10px", borderRadius: 8, background: COLORS.greenBg, fontSize: 12, color: COLORS.green }}>
+                          <strong>Resultado:</strong> {s.result}
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Result input form modal with classification */}
+          {resultForm && (
+            <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+              onClick={() => setResultForm(null)}>
+              <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text, marginBottom: 4 }}>📝 Registrar Resultado</div>
+                <div style={{ fontSize: 14, color: COLORS.primary, fontWeight: 600, marginBottom: 16 }}>{resultForm.name}</div>
+
+                {/* Date */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 4 }}>FECHA DE REALIZACIÓN</label>
+                  <input type="date" value={resultDate} onChange={e => { setResultDate(e.target.value); if (resultClassification) handleClassify(resultForm.screening, resultClassification); }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "2px solid " + COLORS.border, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
+                </div>
+
+                {/* Classification */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 6 }}>CLASIFICACIÓN</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                    {[
+                      { val: "normal", label: "Normal", color: COLORS.green, bg: COLORS.greenBg, icon: "✓" },
+                      { val: "borderline", label: "Limítrofe", color: COLORS.yellow, bg: COLORS.yellowBg, icon: "⚠" },
+                      { val: "pathological", label: "Patológico", color: COLORS.red, bg: COLORS.redBg, icon: "✗" },
+                    ].map(opt => (
+                      <button key={opt.val} onClick={() => handleClassify(resultForm.screening, opt.val)} style={{
+                        padding: "10px 6px", borderRadius: 10, border: resultClassification === opt.val ? "2px solid " + opt.color : "2px solid transparent",
+                        background: resultClassification === opt.val ? opt.bg : COLORS.divider,
+                        color: resultClassification === opt.val ? opt.color : COLORS.textSec,
+                        fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "center",
+                      }}>{opt.icon} {opt.label}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Result text */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 4 }}>HALLAZGOS</label>
+                  <textarea value={resultText} onChange={e => setResultText(e.target.value)}
+                    placeholder="Ej: LDL 145 mg/dL, HDL 38 mg/dL" rows={2}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "2px solid " + COLORS.border, fontSize: 14, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
+                </div>
+
+                {/* Next date (only after classification) */}
+                {resultClassification && (
+                  <div style={{ marginBottom: 14, padding: "12px", borderRadius: 12, background: COLORS.primaryLight }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 8 }}>PRÓXIMA REALIZACIÓN</label>
+                    {[
+                      { mode: "suggested", label: "Fecha sugerida: " + suggestedNext, sub: "Según resultado " + (resultClassification === "normal" ? "normal" : resultClassification === "borderline" ? "limítrofe" : "patológico") },
+                      { mode: "default", label: "Frecuencia estándar", sub: resultForm.screening?.normalInterval === 0 ? "Tamizaje único" : "Cada " + ((resultForm.screening?.normalInterval || 12) >= 12 ? ((resultForm.screening?.normalInterval || 12) / 12) + " año(s)" : (resultForm.screening?.normalInterval || 12) + " meses") },
+                      { mode: "custom", label: "Fecha personalizada" },
+                    ].map(opt => (
+                      <button key={opt.mode} onClick={() => setNextDateMode(opt.mode)} style={{
+                        display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", marginBottom: 4,
+                        borderRadius: 8, border: nextDateMode === opt.mode ? "2px solid " + COLORS.primary : "2px solid " + COLORS.border,
+                        background: nextDateMode === opt.mode ? "#fff" : "transparent", cursor: "pointer", textAlign: "left",
+                      }}>
+                        <div style={{ width: 18, height: 18, borderRadius: 9, border: "2px solid " + (nextDateMode === opt.mode ? COLORS.primary : COLORS.border), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {nextDateMode === opt.mode && <div style={{ width: 8, height: 8, borderRadius: 4, background: COLORS.primary }} />}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{opt.label}</div>
+                          {opt.sub && <div style={{ fontSize: 11, color: COLORS.textSec }}>{opt.sub}</div>}
+                        </div>
+                      </button>
+                    ))}
+                    {nextDateMode === "custom" && (
+                      <input type="date" value={customNext} onChange={e => setCustomNext(e.target.value)}
+                        style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "2px solid " + COLORS.border, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit", marginTop: 4 }} />
+                    )}
+                  </div>
+                )}
+
+                <BigButton onClick={() => handleCompleteScreening(resultForm.screening)} disabled={saving || !resultClassification} icon="✓" color={resultClassification ? COLORS.green : COLORS.border}>
+                  {saving ? "Guardando..." : "Guardar resultado"}
+                </BigButton>
+                <button onClick={() => setResultForm(null)} style={{ width: "100%", padding: 12, marginTop: 8, borderRadius: 10, border: "2px solid " + COLORS.border, background: "#fff", fontSize: 14, fontWeight: 600, color: COLORS.textSec, cursor: "pointer" }}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Vitals tab ──────────────────────────────────── */}
+      {tab === "vitals" && (
+        <div>
+          <SectionTitle>Últimas presiones arteriales</SectionTitle>
+          {vitals.bp.length === 0 ? <div style={{ fontSize: 13, color: COLORS.textSec, marginBottom: 16 }}>Sin registros</div> : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 20 }}>
+              {vitals.bp.slice(0, 10).map((r, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 8, background: STATUS[r.status]?.bg || COLORS.divider }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: STATUS[r.status]?.color }}>{r.systolic}/{r.diastolic} mmHg</span>
+                  <span style={{ fontSize: 11, color: COLORS.textSec }}>{new Date(r.measuredAt).toLocaleDateString("es-PA", { day: "numeric", month: "short" })}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <SectionTitle>Últimas glucosas</SectionTitle>
+          {vitals.glucose.length === 0 ? <div style={{ fontSize: 13, color: COLORS.textSec }}>Sin registros</div> : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {vitals.glucose.slice(0, 10).map((r, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 8, background: STATUS[r.status]?.bg || COLORS.divider }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: STATUS[r.status]?.color }}>{r.value} mg/dL ({r.type === "fasting" ? "ayunas" : "postprandial"})</span>
+                  <span style={{ fontSize: 11, color: COLORS.textSec }}>{new Date(r.measuredAt).toLocaleDateString("es-PA", { day: "numeric", month: "short" })}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Meds tab ────────────────────────────────────── */}
+      {tab === "meds" && (
+        <div>
+          {medications.length === 0 ? <EmptyState icon="💊" message="Sin medicamentos registrados" /> : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {medications.map((m, i) => (
+                <Card key={m._id || i} style={{ padding: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.text }}>{m.name} {m.dose}</div>
+                  <div style={{ fontSize: 12, color: COLORS.textSec }}>{m.frequency} · {m.schedules?.join(", ")} {m.indication ? " · " + m.indication : ""}</div>
+                </Card>
+              ))}
+            </div>
+          )}
+          {tcc?.progress && (
+            <div style={{ marginTop: 20 }}>
+              <SectionTitle>Progreso TCC</SectionTitle>
+              <Card style={{ padding: 14 }}>
+                <div style={{ fontSize: 14, color: COLORS.text }}>
+                  🧠 Fase {tcc.progress.currentPhase}, Semana {tcc.progress.currentWeek}
+                </div>
+                <div style={{ fontSize: 12, color: COLORS.textSec, marginTop: 4 }}>
+                  ABC: {tcc.progress.totalABCRecords} · Metas: {tcc.progress.totalGoalsCompleted}/{tcc.progress.totalGoalsSet} · H/S: {tcc.progress.totalHungerScales}
+                </div>
+              </Card>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Edit tab ────────────────────────────────────── */}
+      {tab === "edit" && (
+        <EditPatientForm patient={p} onSave={handleUpdatePatient} saving={saving} />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// EDIT PATIENT FORM
+// ═══════════════════════════════════════════════════════════
+function EditPatientForm({ patient, onSave, saving }) {
+  const [height, setHeight] = useState(patient.height || "");
+  const [weight, setWeight] = useState(patient.weight || "");
+  const [waist, setWaist] = useState(patient.waistCircumference || "");
+  const [smoking, setSmoking] = useState(patient.riskFactors?.smoking || "never");
+  const [cpd, setCpd] = useState(patient.riskFactors?.cigarettesPerDay || "");
+  const [years, setYears] = useState(patient.riskFactors?.yearsSmoked || "");
+  const [newDx, setNewDx] = useState("");
+  const [newDxCode, setNewDxCode] = useState("");
+  const [newFh, setNewFh] = useState("");
+  const [newFhRel, setNewFhRel] = useState("");
+
+  const diag = patient.diagnoses || [];
+  const fhx = patient.familyHistory || [];
+
+  const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "2px solid " + COLORS.border, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+  const labelStyle = { display: "block", fontSize: 12, fontWeight: 700, color: COLORS.textSec, marginBottom: 4, textTransform: "uppercase" };
+
+  return (
+    <div>
+      <SectionTitle>Antropometría</SectionTitle>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Talla (cm)</label>
+          <input type="number" value={height} onChange={e => setHeight(e.target.value)} style={inputStyle} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Peso (kg)</label>
+          <input type="number" value={weight} onChange={e => setWeight(e.target.value)} style={inputStyle} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>CC (cm)</label>
+          <input type="number" value={waist} onChange={e => setWaist(e.target.value)} style={inputStyle} />
+        </div>
+      </div>
+      <BigButton onClick={() => {
+        const update = {};
+        if (height) update.height = parseFloat(height);
+        if (weight) update.weight = parseFloat(weight);
+        if (waist) update.waistCircumference = parseFloat(waist);
+        if (Object.keys(update).length) onSave("height", update.height); // triggers reload
+        if (update.weight) onSave("weight", update.weight);
+        if (update.waistCircumference) onSave("waistCircumference", update.waistCircumference);
+      }} disabled={saving} icon="💾" color="#1E3A5F">
+        Guardar antropometría
+      </BigButton>
+
+      <div style={{ height: 1, background: COLORS.divider, margin: "20px 0" }} />
+
+      <SectionTitle>Hábitos tóxicos</SectionTitle>
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>Tabaquismo</label>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[["never", "Nunca"], ["former", "Exfumador"], ["current", "Activo"]].map(([val, label]) => (
+            <button key={val} onClick={() => setSmoking(val)} style={{
+              flex: 1, padding: 10, borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer",
+              background: smoking === val ? (val === "current" ? COLORS.redBg : val === "former" ? COLORS.yellowBg : COLORS.greenBg) : COLORS.divider,
+              color: smoking === val ? (val === "current" ? COLORS.red : val === "former" ? COLORS.yellow : COLORS.green) : COLORS.textSec,
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+      {(smoking === "current" || smoking === "former") && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Cig/día</label>
+            <input type="number" value={cpd} onChange={e => setCpd(e.target.value)} style={inputStyle} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Años fumando</label>
+            <input type="number" value={years} onChange={e => setYears(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
+      )}
+      <BigButton onClick={() => onSave("riskFactors", { smoking, cigarettesPerDay: parseInt(cpd) || 0, yearsSmoked: parseInt(years) || 0 })} disabled={saving} icon="💾" color="#1E3A5F">
+        Guardar hábitos
+      </BigButton>
+
+      <div style={{ height: 1, background: COLORS.divider, margin: "20px 0" }} />
+
+      <SectionTitle>Agregar diagnóstico (APP)</SectionTitle>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <input type="text" value={newDx} onChange={e => setNewDx(e.target.value)} placeholder="Ej: Diabetes mellitus tipo 2" style={{ ...inputStyle, flex: 2 }} />
+        <input type="text" value={newDxCode} onChange={e => setNewDxCode(e.target.value)} placeholder="CIE-10" style={{ ...inputStyle, flex: 1 }} />
+      </div>
+      <BigButton onClick={() => {
+        if (!newDx) return;
+        const updated = [...diag, { name: newDx, code: newDxCode, dateOfDiagnosis: new Date(), isActive: true }];
+        onSave("diagnoses", updated);
+        setNewDx(""); setNewDxCode("");
+      }} disabled={saving || !newDx} icon="+" color="#1E3A5F">Agregar APP</BigButton>
+
+      <div style={{ height: 1, background: COLORS.divider, margin: "20px 0" }} />
+
+      <SectionTitle>Agregar antecedente familiar (APF)</SectionTitle>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <input type="text" value={newFh} onChange={e => setNewFh(e.target.value)} placeholder="Ej: Ca de mama" style={{ ...inputStyle, flex: 2 }} />
+        <input type="text" value={newFhRel} onChange={e => setNewFhRel(e.target.value)} placeholder="Parentesco" style={{ ...inputStyle, flex: 1 }} />
+      </div>
+      <BigButton onClick={() => {
+        if (!newFh || !newFhRel) return;
+        const updated = [...fhx, { condition: newFh, relative: newFhRel }];
+        onSave("familyHistory", updated);
+        setNewFh(""); setNewFhRel("");
+      }} disabled={saving || !newFh || !newFhRel} icon="+" color="#1E3A5F">Agregar APF</BigButton>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAIN DASHBOARD
+// ═══════════════════════════════════════════════════════════
+export default function DashboardPage() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+
+  const loadDashboard = async (isRetry = false) => {
+    setLoading(true); setError(null);
+    try {
+      const res = await api.getDashboardOverview();
+      if (res?.data) {
+        setData(res.data);
+      } else {
+        throw new Error("El servidor respondió sin datos. Intente nuevamente.");
+      }
+    } catch (err) {
+      console.error("Dashboard error:", err);
+      const msg = err.message || "Error desconocido";
+      // Auto-retry once on connection errors (cold start)
+      if (!isRetry && (msg.includes("conexión") || msg.includes("fetch") || msg.includes("Failed"))) {
+        setError("El servidor está despertando... reintentando automáticamente.");
+        setTimeout(() => { setRetryCount(c => c + 1); loadDashboard(true); }, 5000);
+        return;
+      }
+      setError(msg);
+    }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { loadDashboard(); }, []);
+
+  if (loading) return (
+    <div style={{ textAlign: "center", padding: "60px 20px" }}>
+      <LoadingSpinner text={retryCount > 0 ? "Reconectando con el servidor..." : "Cargando dashboard..."} />
+      {retryCount === 0 && (
+        <div style={{ fontSize: 13, color: "#94A3B8", marginTop: 16, lineHeight: 1.5 }}>
+          Si tarda más de 30 segundos, el servidor puede estar en modo reposo (Render free tier).
+        </div>
+      )}
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ textAlign: "center", padding: "40px 20px" }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: "#1E293B", marginBottom: 8 }}>Error al cargar el dashboard</div>
+      <div style={{ fontSize: 14, color: "#64748B", marginBottom: 20, lineHeight: 1.5 }}>{error}</div>
+      <BigButton onClick={() => { setRetryCount(c => c + 1); loadDashboard(); }} icon="🔄" color="#0A8A8F">Reintentar</BigButton>
+      <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 16, lineHeight: 1.5 }}>
+        Consejo: Si el error persiste, verifique que el backend esté corriendo en Render<br />
+        y que haya ejecutado <code style={{ background: "#F1F5F9", padding: "2px 6px", borderRadius: 4 }}>node seeds/seed.js</code>
+      </div>
+    </div>
+  );
+
+  if (!data) return (
+    <div style={{ textAlign: "center", padding: "40px 20px" }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: "#1E293B", marginBottom: 8 }}>Sin datos</div>
+      <div style={{ fontSize: 14, color: "#64748B", marginBottom: 20, lineHeight: 1.5 }}>No se encontraron pacientes. Ejecute el seed o registre pacientes.</div>
+      <BigButton onClick={() => loadDashboard()} icon="🔄" color="#0A8A8F">Recargar</BigButton>
+    </div>
+  );
+
+  if (selectedPatient) {
+    return <PatientDetail patientId={selectedPatient} onBack={() => setSelectedPatient(null)} />;
+  }
+
+  return <PatientList patients={data.patients || []} summary={data.summary || {}} onSelectPatient={setSelectedPatient} onReload={() => loadDashboard()} />;
+}
