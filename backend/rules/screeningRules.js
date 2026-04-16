@@ -362,18 +362,6 @@ const RULES = [
     return null;
   },
 
-  // 20. DEPRESIÓN
-  (p) => {
-    if (p.age >= 18) {
-      return { name: "Tamizaje de depresión (PHQ-2)", category: "general",
-        normalInterval: 12, borderlineInterval: 6, pathologicalInterval: 3,
-        intervalMonths: 12,
-        reason: "Tamizaje anual de depresión en adultos",
-        source: "USPSTF 2016", priority: "baja" };
-    }
-    return null;
-  },
-
   // 21. CESACIÓN TABÁQUICA
   (p) => {
     if (isSmoker(p)) {
@@ -382,18 +370,6 @@ const RULES = [
         intervalMonths: 6,
         reason: "Fumador activo — intervención conductual cada 6 meses",
         source: "USPSTF 2021", priority: "alta" };
-    }
-    return null;
-  },
-
-  // 22. HEPATITIS C
-  (p) => {
-    if (p.age >= 18 && p.age <= 79) {
-      return { name: "Tamizaje de Hepatitis C (anti-HCV)", category: "general",
-        normalInterval: 0, borderlineInterval: 12, pathologicalInterval: 6,
-        intervalMonths: 0,
-        reason: "Adulto 18-79 años — tamizaje único",
-        source: "USPSTF 2020", priority: "baja" };
     }
     return null;
   },
