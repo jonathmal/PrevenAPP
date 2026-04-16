@@ -82,6 +82,7 @@ class ApiService {
   // Doctor → patient management
   createPatient(data) { return this.post("/dashboard/patient", data); }
   deactivatePatient(patientId) { return this.put("/dashboard/patient/" + patientId + "/deactivate"); }
+  deletePatient(patientId) { return this.del("/dashboard/patient/" + patientId); }
   resetPatientPassword(patientId) { return this.post("/dashboard/patient/" + patientId + "/reset-password"); }
 
   logout() {

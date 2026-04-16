@@ -393,6 +393,19 @@ function PatientDetail({ patientId, onBack }) {
           padding: "6px 12px", borderRadius: 8, border: "1px solid " + COLORS.redBg,
           background: "#fff", fontSize: 12, fontWeight: 700, color: COLORS.red, cursor: "pointer",
         }}>🚫 Desactivar</button>
+        <button onClick={async () => {
+          const name = data?.patient?.user?.name || "este paciente";
+          if (!confirm("⚠️ ¿ELIMINAR PERMANENTEMENTE a " + name + "?\n\nEsto borrará TODOS sus datos:\n• Signos vitales\n• Medicamentos\n• Tamizajes\n• Vacunas\n• Registros TCC\n\nEsta acción NO se puede deshacer.")) return;
+          if (!confirm("ÚLTIMA CONFIRMACIÓN:\n\n¿Realmente desea eliminar a " + name + " y todos sus datos de forma permanente?")) return;
+          try {
+            await api.deletePatient(patientId);
+            alert("Paciente eliminado permanentemente.");
+            onBack();
+          } catch (e) { alert("Error: " + e.message); }
+        }} style={{
+          padding: "6px 12px", borderRadius: 8, border: "2px solid #DC2626",
+          background: "#FEF2F2", fontSize: 12, fontWeight: 700, color: "#DC2626", cursor: "pointer",
+        }}>🗑️ Eliminar</button>
       </div>
 
       {/* Patient header */}

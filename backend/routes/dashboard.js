@@ -2,8 +2,8 @@ const express = require("express");
 const router = express.Router();
 const { asyncHandler, protect, authorize } = require("../middleware");
 const {
-  User, Patient, BPReading, GlucoseReading, Medication, MedLog,
-  Screening, TCCProgress, ABCRecord, SMARTGoal,
+  User, Patient, BPReading, GlucoseReading, WeightReading, Medication, MedLog,
+  Screening, TCCProgress, ABCRecord, SMARTGoal, HungerScale, Vaccination,
 } = require("../models");
 const { refreshScreenings } = require("../rules/refreshScreenings");
 
@@ -197,6 +197,31 @@ router.put("/patient/:patientId/deactivate", asyncHandler(async (req, res) => {
   await patient.save();
   await User.findByIdAndUpdate(patient.user, { isActive: false });
   res.json({ success: true, message: "Paciente desactivado" });
+}));
+
+// ─── DELETE /api/dashboard/patient/:id — Permanent delete ────────
+router.delete("/patient/:patientId", asyncHandler(async (req, res) => {
+  const patient = await Patient.findById(req.params.patientId);
+  if (!patient) return res.status(404).json({ success: false, error: "Paciente no encontrado" });
+  const pid = patient._id;
+  const uid = patient.user;
+  // Delete all patient data
+  await Promise.all([
+    BPReading.deleteMany({ patient: pid }),
+    GlucoseReading.deleteMany({ patient: pid }),
+    WeightReading.deleteMany({ patient: pid }),
+    Medication.deleteMany({ patient: pid }),
+    MedLog.deleteMany({ patient: pid }),
+    Screening.deleteMany({ patient: pid }),
+    TCCProgress.deleteMany({ patient: pid }),
+    ABCRecord.deleteMany({ patient: pid }),
+    SMARTGoal.deleteMany({ patient: pid }),
+    HungerScale.deleteMany({ patient: pid }),
+    Vaccination.deleteMany({ patient: pid }),
+  ]);
+  await Patient.findByIdAndDelete(pid);
+  await User.findByIdAndDelete(uid);
+  res.json({ success: true, message: "Paciente y todos sus datos eliminados permanentemente" });
 }));
 
 // ─── POST /api/dashboard/patient/:id/reset-password ──────────────
